@@ -3,16 +3,8 @@ import math
 
 class XArmController:
     def __init__(self, config_path):
-        self.config_path = config_path
-        self.IP_ADDRESS = self.read_ip_address()
         self.arm = XArmAPI(self.IP_ADDRESS)
         self.setup()
-
-    def read_ip_address(self):
-        parser = ConfigParser()
-        parser.read(self.config_path)
-        ip = parser.get('xArm', 'ip')
-        return ip
 
     def setup(self):
         self.arm.motion_enable(enable=True)
