@@ -25,10 +25,8 @@ class XArmController:
             x = center[0] + radius * math.cos(angle_rad)
             y = center[1] + radius * math.sin(angle_rad)
             z = center[2]
-            if i == 0:
-                self.arm.set_position(x, y, z, speed=100, wait=True)
-            else:
-                self.arm.move_line(x, y, z, speed=100, wait=True)
+            # Use set_position for all segments, including the first
+            self.arm.set_position(x=x, y=y, z=z, speed=100, wait=True)
 
     def disconnect(self):
         self.arm.disconnect()
@@ -38,10 +36,10 @@ def main():
     
     try:
         # Define the corners of the canvas (assuming corrected for tilt)
-        top_left = [496.8, 248.6, 991.8]
-        top_right = [495.8, 294.6, 991.8]
-        bottom_left = [366.9, 256.6, 248.3]
-        bottom_right = [366.9, -3.17, 248.3]
+        top_left = [546, 205, 835]
+        top_right = [546, -333, 835]
+        bottom_left = [ 508, -333, 88]
+        bottom_right = [508, 205, 88]
         
         # Draw square around the canvas
         square_points = [top_left, top_right, bottom_right, bottom_left, top_left]
