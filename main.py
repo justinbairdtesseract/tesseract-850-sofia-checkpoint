@@ -19,19 +19,16 @@ class XArmController:
             self.move_to_position(*point)
 
     def draw_triangle(self, start_point, side_length):
-        # Calculate the height of the equilateral triangle
+        x = start_point[0]
         height = (math.sqrt(3) / 2) * side_length
-        
-        # Calculate points
+
+        # Adjust points for Y-Z plane drawing
         point1 = start_point
-        point2 = [start_point[0] + side_length, start_point[1], start_point[2]]
-        point3 = [start_point[0] + side_length / 2, start_point[1] + height, start_point[2]]
-        
-        # Draw the triangle
-        self.move_to_position(*point1)
-        self.move_to_position(*point2)
-        self.move_to_position(*point3)
-        self.move_to_position(*point1)  # Complete the triangle
+        point2 = [x, start_point[1] + side_length, start_point[2]]  
+        point3 = [x, start_point[1] + side_length / 2, start_point[2] - height]  
+        triangle_points = [point1, point2, point3, point1]
+        for point in triangle_points:
+            self.move_to_position(*point)
 
 
     def disconnect(self):
@@ -61,19 +58,19 @@ def main():
         center_z = (835 + 88) / 2 
         
         # Draw triagnle
-        side_lengths = [50, 100, 150]  # Example side lengths
-        starting_points = []
-        for length in side_lengths:
-            start_x = center_x - length / 2
-            start_y = center_y - ((math.sqrt(3) / 2) * length) / 2
-            start_z = center_z
-            starting_points.append([start_x, start_y, start_z])
+        fixed_x = 546  # Example fixed X value, adjust based on your setup
+        side_lengths = [50, 100, 150]  # 
+        
+        start_y = -100  # 
+        start_z = 500  # 
 
-        for i, start_point in enumerate(starting_points):
-            controller.draw_triangle(start_point, side_lengths[i])
+        for length in side_lengths:
+            start_point = [fixed_x, start_y, start_z]
+            controller.draw_triangle(start_point, length)
+            start_y -= length 
+            start_z -= (math.sqrt(3) / 2) * length  #
         
     finally:
-        # Ensure the arm is disconnected properly
         controller.disconnect()
 
 if __name__ == '__main__':
