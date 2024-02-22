@@ -109,7 +109,7 @@ class XArmController:
         self.arm.disconnect()
 
 def main():
-    controller = XArmController('http://192.168.0.203/')
+    controller = XArmController('192.168.0.203')
     try:
         controller.draw_canvas_border()
         
