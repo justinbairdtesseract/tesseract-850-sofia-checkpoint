@@ -36,8 +36,7 @@ class XArmController:
 
 
 def main():
-    controller = XArmController('your_xarm_ip')  # Replace with your xArm's IP address
-    
+    controller = XArmController('http://192.168.0.203/') 
     try:
         # Define the corners of the canvas (assuming corrected for tilt)
         top_left = [546, 205, 835]
