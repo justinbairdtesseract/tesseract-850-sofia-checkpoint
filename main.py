@@ -118,12 +118,14 @@ def main():
     controller = XArmController('192.168.0.203')
     try:
         # controller.draw_canvas_border()
-        
         # controller.draw_random_dots(10)
-        
-        # controller.draw_random_lines(10)
 
-        controller.fill_canvas(line_spacing=10)
+        ### TEST, DOES THIS MOVE THAT JOINT THAT NEEDS TO BE MOVED?
+        controller.set_servo_angle(servo_id=5, angle=90, wait=True)
+
+
+        ### TEST, fill_canvas
+        # controller.fill_canvas(line_spacing=10)
 
 
     finally:

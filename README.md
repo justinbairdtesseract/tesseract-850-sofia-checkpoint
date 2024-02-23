@@ -12,3 +12,7 @@ make sure installed in the environment.
 in main.py update IP Address to robot IP Address.
 
 run main.py in environment. 
+
+
+### Notes
+pip install essentia sounddevice numpy
