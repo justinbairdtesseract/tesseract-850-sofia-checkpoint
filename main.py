@@ -7,6 +7,7 @@ class XArmController:
         self.IP_ADDRESS = ip_address
         self.arm = XArmAPI(self.IP_ADDRESS)
         self.setup()
+        # Canvas corners must always stay in this order, top left, top right, bottom left, bottom right
         self.canvas_corners = [
             [546, 205, 835],  # top_left
             [546, -333, 835], # top_right
@@ -81,41 +82,49 @@ class XArmController:
             start_point = scaled_points[i]
             end_point = scaled_points[(i + 1) % len(scaled_points)] 
             self.draw_line(start_point, end_point, speed)
-            
-    def draw_random_lines(self, num_lines):
-        for _ in range(num_lines):
-                start_z = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
-                end_z = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
-                
-                start_x = self.x_from_z(start_z)
-                end_x = self.x_from_z(end_z)
-                
-                # Randomly choose Y within the limits of top left and bottom right corners
-                start_y = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
-                end_y = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
-                
-                # Approach the canvas before starting the line
-                self.approach_canvas(start_x, start_y, start_z)
-                
-                # Draw the line from start to end point
-                print(f"Drawing line from ({start_x}, {start_y}, {start_z}) to ({end_x}, {end_y}, {end_z})")
-                self.arm.set_position(x=end_x, y=end_y, z=end_z, speed=100, wait=True)
-                
-                # Retreat from the canvas after drawing the line
-                self.retreat_from_canvas(end_x, end_y, end_z)
+
+    def fill_canvas(self, line_spacing=10, speed=100):
+        # Calculate the horizontal range (y-axis) of the canvas
+        y_min = min(self.canvas_corners[0][1], self.canvas_corners[1][1])
+        y_max = max(self.canvas_corners[0][1], self.canvas_corners[1][1])
+
+        # Calculate the vertical range (z-axis) of the canvas
+        z_min = min(self.canvas_corners[0][2], self.canvas_corners[2][2])
+        z_max = max(self.canvas_corners[0][2], self.canvas_corners[2][2])
+
+        start_z = z_max
+        end_z = z_min
+
+        # vertical lines across
+        current_y = y_min
+        while current_y <= y_max:
+            start = [self.x_from_z(start_z), current_y, start_z]
+            end = [self.x_from_z(end_z), current_y, end_z]
+
+            self.draw_line(start, end, speed)
+            current_y += line_spacing
+            start_z, end_z = end_z, start_z
 
 
     def disconnect(self):
-        self.arm.disconnect()
+        if not self.simulation:
+            self.arm.disconnect()
+        else:
+            print("Simulation mode: Disconnected.")
+
+
 
 def main():
     controller = XArmController('192.168.0.203')
     try:
-        controller.draw_canvas_border()
+        # controller.draw_canvas_border()
         
-        controller.draw_random_dots(10)
+        # controller.draw_random_dots(10)
         
-        controller.draw_random_lines(10)
+        # controller.draw_random_lines(10)
+
+        controller.fill_canvas(line_spacing=10)
+
 
     finally:
         controller.disconnect()
