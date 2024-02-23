@@ -15,7 +15,7 @@ class XArmController:
             [508, -333, 88]   # bottom_right
         ]
         self.calculate_scaling_factors()
-        self.off_canvas_distance = 50  # Distance to start away from the canvas on the x-axis
+        self.off_canvas_distance = 25  # Distance to start away from the canvas on the x-axis
 
     def setup(self):
         self.arm.motion_enable(enable=True)
@@ -36,12 +36,12 @@ class XArmController:
 
 
     # FUNCTIONS TO MOVE TO AND FROM CANVAS
-    def approach_canvas(self, x, y, z, speed=100):
+    def approach_canvas(self, x, y, z, speed=50):
         # Move to a position slightly away from the canvas
         approach_x = x - self.off_canvas_distance
         self.arm.set_position(x=approach_x, y=y, z=z, speed=speed, wait=True)
 
-    def retreat_from_canvas(self, x, y, z, speed=100):
+    def retreat_from_canvas(self, x, y, z, speed=50):
         # Move to a position slightly away from the canvas after drawing
         retreat_x = x - self.off_canvas_distance
         self.arm.set_position(x=retreat_x, y=y, z=z, speed=speed, wait=True)
@@ -121,7 +121,7 @@ def main():
         # controller.draw_random_dots(10)
 
         ### TEST, DOES THIS MOVE THAT JOINT THAT NEEDS TO BE MOVED?
-        controller.set_servo_angle(servo_id=5, angle=90, wait=True)
+        controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 
 
         ### TEST, fill_canvas
