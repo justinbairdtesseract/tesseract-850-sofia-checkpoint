@@ -1,12 +1,17 @@
 from xarm.wrapper import XArmAPI
+from pythonosc.udp_client import SimpleUDPClient
 import math
 import random
 
+MAXMSP_IP = '127.0.0.1' # add IP
+MAXMSP_PORT = 7654
+
 class XArmController:
-    def __init__(self, ip_address):
+    def __init__(self, ip_address,  osc_ip=MAXMSP_IP, osc_port=MAXMSP_PORT):
         self.IP_ADDRESS = ip_address
         self.arm = XArmAPI(self.IP_ADDRESS)
         self.setup()
+
         # Canvas corners must always stay in this order, top left, top right, bottom left, bottom right
         self.canvas_corners = [
             [546, 205, 835],  # top_left
@@ -15,14 +20,17 @@ class XArmController:
             [508, -333, 88]   # bottom_right
         ]
         self.calculate_scaling_factors()
+        self.calculate_canvas_bounds()
         self.off_canvas_distance = 25  # Distance to start away from the canvas on the x-axis
+
+        self.osc_client = SimpleUDPClient(osc_ip, osc_port)
 
     def setup(self):
         self.arm.motion_enable(enable=True)
         self.arm.set_mode(0)
         self.arm.set_state(state=0)
 
-    # FUNCTIONS TO CALCULATE X
+    # FUNCTIONS TO CALCULATE X and Bounds
     def calculate_scaling_factors(self):
         z1, x1 = self.canvas_corners[0][2], self.canvas_corners[0][0]  # Top left corner
         z2, x2 = self.canvas_corners[2][2], self.canvas_corners[2][0]  # Bottom left corner
@@ -33,6 +41,13 @@ class XArmController:
         # Calculate x based on z
         return self.a * z + self.b
 
+    def calculate_canvas_bounds(self):
+            self.y_min = min(self.canvas_corners[0][1], self.canvas_corners[1][1])
+            self.y_max = max(self.canvas_corners[0][1], self.canvas_corners[1][1])
+            self.z_min = min(self.canvas_corners[2][2], self.canvas_corners[0][2])
+            self.z_max = max(self.canvas_corners[2][2], self.canvas_corners[0][2])
+
+
 
 
     # FUNCTIONS TO MOVE TO AND FROM CANVAS
@@ -40,11 +55,13 @@ class XArmController:
         # Move to a position slightly away from the canvas
         approach_x = x - self.off_canvas_distance
         self.arm.set_position(x=approach_x, y=y, z=z, speed=speed, wait=True)
+        self.osc_client.send_message("/arm/movement", "approaching")
 
     def retreat_from_canvas(self, x, y, z, speed=50):
         # Move to a position slightly away from the canvas after drawing
         retreat_x = x - self.off_canvas_distance
         self.arm.set_position(x=retreat_x, y=y, z=z, speed=speed, wait=True)
+        self.osc_client.send_message("/arm/movement", "retreating")
 
     def move_to_position_with_approach_and_retreat(self, x, y, z, speed=100):
         self.approach_canvas(x, y, z, speed)
@@ -83,21 +100,40 @@ class XArmController:
             end_point = scaled_points[(i + 1) % len(scaled_points)] 
             self.draw_line(start_point, end_point, speed)
 
+
+    def draw_arc(self, center_y, center_z, r, start_angle, end_angle, speed=100, steps=20):
+        angle_step = (end_angle - start_angle) / steps
+        for step in range(steps + 1):
+            angle = math.radians(start_angle + step * angle_step)
+            y = r * math.cos(angle) + center_y
+            z = r * math.sin(angle) + center_z
+            x = self.x_from_z(z)
+            
+            if step == 0:
+                self.approach_canvas(x, y, z, speed)
+            else:
+                self.arm.set_position(x=x, y=y, z=z, speed=speed, wait=True)
+
+        self.retreat_from_canvas(x, y, z, speed)
+
+
+    def draw_random_arcs(self, num_arcs, speed=100, steps=20):
+        for _ in range(num_arcs):
+            center_y = random.uniform(self.y_min, self.y_max)
+            center_z = random.uniform(self.z_min, self.z_max)
+            r = random.uniform(50, 100) 
+            start_angle = random.uniform(0, 180)
+            end_angle = random.uniform(start_angle, 360)
+            
+            self.draw_arc(center_y, center_z, r, start_angle, end_angle, speed, steps)
+
+
     def fill_canvas(self, line_spacing=10, speed=100):
-        # Calculate the horizontal range (y-axis) of the canvas
-        y_min = min(self.canvas_corners[0][1], self.canvas_corners[1][1])
-        y_max = max(self.canvas_corners[0][1], self.canvas_corners[1][1])
+        start_z = self.z_max
+        end_z = self.z_min
 
-        # Calculate the vertical range (z-axis) of the canvas
-        z_min = min(self.canvas_corners[0][2], self.canvas_corners[2][2])
-        z_max = max(self.canvas_corners[0][2], self.canvas_corners[2][2])
-
-        start_z = z_max
-        end_z = z_min
-
-        # vertical lines across
-        current_y = y_min
-        while current_y <= y_max:
+        current_y = self.y_min
+        while current_y <= self.y_max:
             start = [self.x_from_z(start_z), current_y, start_z]
             end = [self.x_from_z(end_z), current_y, end_z]
 
@@ -126,6 +162,10 @@ def main():
 
         ### TEST, fill_canvas
         # controller.fill_canvas(line_spacing=10)
+
+
+        ### TEST DRAW ARCS
+        # controller.draw_random_arcs(10)
 
 
     finally:
