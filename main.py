@@ -64,7 +64,7 @@ class XArmController:
         self.arm.set_position(x=retreat_x, y=y, z=z, speed=speed, wait=True)
         self.osc_client.send_message("/arm/movement", "retreating")
 
-    def move_to_position_with_approach_and_retreat(self, x, y, z, speed=100):
+    def move_to_position_with_approach_and_retreat(self, x, y, z, speed=50):
         self.approach_canvas(x, y, z, speed)
         self.arm.set_position(x=x, y=y, z=z, speed=speed, wait=True)
         self.retreat_from_canvas(x, y, z, speed)
