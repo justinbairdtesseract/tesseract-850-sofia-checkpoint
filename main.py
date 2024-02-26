@@ -6,6 +6,9 @@ import random
 MAXMSP_IP = '127.0.0.1' # add IP
 MAXMSP_PORT = 7654
 
+# ADD CANVAS CORNERS
+# ADD ARM IP, and make all arguments to Xarm Controller, then make controller in seperate file.. 
+
 class XArmController:
     def __init__(self, ip_address,  osc_ip=MAXMSP_IP, osc_port=MAXMSP_PORT):
         self.IP_ADDRESS = ip_address
@@ -46,8 +49,6 @@ class XArmController:
             self.y_max = max(self.canvas_corners[0][1], self.canvas_corners[1][1])
             self.z_min = min(self.canvas_corners[2][2], self.canvas_corners[0][2])
             self.z_max = max(self.canvas_corners[2][2], self.canvas_corners[0][2])
-
-
 
 
     # FUNCTIONS TO MOVE TO AND FROM CANVAS
@@ -143,10 +144,7 @@ class XArmController:
 
 
     def disconnect(self):
-        if not self.simulation:
-            self.arm.disconnect()
-        else:
-            print("Simulation mode: Disconnected.")
+        self.arm.disconnect()
 
 
 
