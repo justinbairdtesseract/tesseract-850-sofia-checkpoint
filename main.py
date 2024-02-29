@@ -3,7 +3,7 @@ from pythonosc.udp_client import SimpleUDPClient
 import math
 import random
 
-MAXMSP_IP = '127.0.0.1' # add IP
+MAXMSP_IP = '127.0.0.1' # IP address of laptop 
 MAXMSP_PORT = 7654
 
 # ADD CANVAS CORNERS
@@ -102,31 +102,25 @@ class XArmController:
             self.draw_line(start_point, end_point, speed)
 
 
-    def draw_arc(self, center_y, center_z, r, start_angle, end_angle, speed=100, steps=20):
-        angle_step = (end_angle - start_angle) / steps
-        for step in range(steps + 1):
-            angle = math.radians(start_angle + step * angle_step)
-            y = r * math.cos(angle) + center_y
-            z = r * math.sin(angle) + center_z
-            x = self.x_from_z(z)
-            
-            if step == 0:
-                self.approach_canvas(x, y, z, speed)
-            else:
-                self.arm.set_position(x=x, y=y, z=z, speed=speed, wait=True)
+def draw_random_arcs(self, quantity):
+    for _ in range(quantity):
+        start_y = random.uniform(self.y_min, self.y_max)
+        start_z = random.uniform(self.z_min, self.z_max)
+        start_x = self.x_from_z(start_z)
 
-        self.retreat_from_canvas(x, y, z, speed)
+        end_y = random.uniform(self.y_min, self.y_max)
+        end_z = random.uniform(self.z_min, self.z_max)
+        end_x = self.x_from_z(end_z)
 
+        # random mid point, will be interesting... 
+        mid_y = random.uniform(min(start_y, end_y), max(start_y, end_y))
+        mid_z = random.uniform(min(start_z, end_z), max(start_z, end_z))
+        mid_x = self.x_from_z(mid_z)
 
-    def draw_random_arcs(self, num_arcs, speed=100, steps=20):
-        for _ in range(num_arcs):
-            center_y = random.uniform(self.y_min, self.y_max)
-            center_z = random.uniform(self.z_min, self.z_max)
-            r = random.uniform(50, 100) 
-            start_angle = random.uniform(0, 180)
-            end_angle = random.uniform(start_angle, 360)
-            
-            self.draw_arc(center_y, center_z, r, start_angle, end_angle, speed, steps)
+        self.approach_canvas(start_x, start_y, start_z)
+        self.arm.set_position(x=start_x, y=start_y, z=start_z, wait=True)
+        self.arm.move_arc_lines([start_x, start_y, start_z, mid_x, mid_y, mid_z, end_x, end_y, end_z], radius=0, wait=True)
+        self.retreat_from_canvas(end_x, end_y, end_z)
 
 
     def fill_canvas(self, line_spacing=10, speed=100):
@@ -163,7 +157,7 @@ def main():
 
 
         ### TEST DRAW ARCS
-        # controller.draw_random_arcs(10)
+        controller.draw_random_arcs(10)
 
 
     finally:

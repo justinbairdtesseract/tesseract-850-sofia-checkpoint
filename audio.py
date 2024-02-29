@@ -8,7 +8,7 @@ fs = 44100
 blocksize = 1024  
 hopSize = 512  
 duration = 3 # how often tempo is calculated in seconds
-device = 6
+device = 'Scarlett 4i4 USB'
 
 onset_detection = OnsetRate()
 audio_buffer = np.array([], dtype=np.float32)
