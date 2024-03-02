@@ -101,27 +101,25 @@ class XArmController:
             end_point = scaled_points[(i + 1) % len(scaled_points)] 
             self.draw_line(start_point, end_point, speed)
 
+    def draw_random_arcs(self, quantity):
+        for _ in range(quantity):
+            start_y = random.uniform(self.y_min, self.y_max)
+            start_z = random.uniform(self.z_min, self.z_max)
+            start_x = self.x_from_z(start_z)
 
-def draw_random_arcs(self, quantity):
-    for _ in range(quantity):
-        start_y = random.uniform(self.y_min, self.y_max)
-        start_z = random.uniform(self.z_min, self.z_max)
-        start_x = self.x_from_z(start_z)
+            end_y = random.uniform(self.y_min, self.y_max)
+            end_z = random.uniform(self.z_min, self.z_max)
+            end_x = self.x_from_z(end_z)
 
-        end_y = random.uniform(self.y_min, self.y_max)
-        end_z = random.uniform(self.z_min, self.z_max)
-        end_x = self.x_from_z(end_z)
+            # random mid point, will be interesting... 
+            mid_y = random.uniform(min(start_y, end_y), max(start_y, end_y))
+            mid_z = random.uniform(min(start_z, end_z), max(start_z, end_z))
+            mid_x = self.x_from_z(mid_z)
 
-        # random mid point, will be interesting... 
-        mid_y = random.uniform(min(start_y, end_y), max(start_y, end_y))
-        mid_z = random.uniform(min(start_z, end_z), max(start_z, end_z))
-        mid_x = self.x_from_z(mid_z)
-
-        self.approach_canvas(start_x, start_y, start_z)
-        self.arm.set_position(x=start_x, y=start_y, z=start_z, wait=True)
-        self.arm.move_arc_lines([start_x, start_y, start_z, mid_x, mid_y, mid_z, end_x, end_y, end_z], radius=0, wait=True)
-        self.retreat_from_canvas(end_x, end_y, end_z)
-
+            self.approach_canvas(start_x, start_y, start_z)
+            self.arm.set_position(x=start_x, y=start_y, z=start_z, wait=True)
+            self.arm.move_arc_lines([start_x, start_y, start_z, mid_x, mid_y, mid_z, end_x, end_y, end_z], radius=0, wait=True)
+            self.retreat_from_canvas(end_x, end_y, end_z)
 
     def fill_canvas(self, line_spacing=10, speed=100):
         start_z = self.z_max
@@ -136,7 +134,7 @@ def draw_random_arcs(self, quantity):
             current_y += line_spacing
             start_z, end_z = end_z, start_z
 
-
+            
     def disconnect(self):
         self.arm.disconnect()
 
