@@ -118,7 +118,7 @@ class XArmController:
 
             self.approach_canvas(start_x, start_y, start_z)
             self.arm.set_position(x=start_x, y=start_y, z=start_z, wait=True)
-            self.arm.move_arc_lines([start_x, start_y, start_z, mid_x, mid_y, mid_z, end_x, end_y, end_z], radius=0, wait=True)
+            self.arm.move_arc_lines([start_x, start_y, start_z, mid_x, mid_y, mid_z, end_x, end_y, end_z], wait=True)
             self.retreat_from_canvas(end_x, end_y, end_z)
 
     def fill_canvas(self, line_spacing=10, speed=100):
@@ -155,7 +155,7 @@ def main():
 
 
         ### TEST DRAW ARCS
-        controller.draw_random_arcs(10)
+        # controller.draw_random_arcs(10)
 
 
     finally:
