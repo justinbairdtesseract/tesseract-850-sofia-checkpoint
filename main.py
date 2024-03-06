@@ -101,25 +101,35 @@ class XArmController:
             end_point = scaled_points[(i + 1) % len(scaled_points)] 
             self.draw_line(start_point, end_point, speed)
 
-    def draw_random_arcs(self, quantity):
-        for _ in range(quantity):
-            start_y = random.uniform(self.y_min, self.y_max)
-            start_z = random.uniform(self.z_min, self.z_max)
-            start_x = self.x_from_z(start_z)
 
-            end_y = random.uniform(self.y_min, self.y_max)
-            end_z = random.uniform(self.z_min, self.z_max)
-            end_x = self.x_from_z(end_z)
+    def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, wait=True):
+        for _ in range(num_arcs):
+            # Move to a random starting position on the canvas
+            random_y_start = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
+            random_z_start = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
+            random_x_start = self.x_from_z(random_z_start)
 
-            # random mid point, will be interesting... 
-            mid_y = random.uniform(min(start_y, end_y), max(start_y, end_y))
-            mid_z = random.uniform(min(start_z, end_z), max(start_z, end_z))
-            mid_x = self.x_from_z(mid_z)
+            # Approach the canvas at the random starting position
+            self.approach_canvas(random_x_start, random_y_start, random_z_start, speed)
 
-            self.approach_canvas(start_x, start_y, start_z)
-            self.arm.set_position(x=start_x, y=start_y, z=start_z, wait=True)
-            self.arm.move_arc_lines([start_x, start_y, start_z, mid_x, mid_y, mid_z, end_x, end_y, end_z], wait=True)
-            self.retreat_from_canvas(end_x, end_y, end_z)
+            # Generate pose1 and pose2 for the circle within canvas bounds
+            random_y1 = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
+            random_z1 = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
+            random_x1 = self.x_from_z(random_z1)
+
+            random_y2 = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
+            random_z2 = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
+            random_x2 = self.x_from_z(random_z2)
+
+            pose1 = [random_x1, random_y1, random_z1, -180, 0, 0]  # Adjust orientation as needed
+            pose2 = [random_x2, random_y2, random_z2, -180, 0, 0]  # Adjust orientation as needed
+
+            # Randomly decide the percentage of the circle to draw
+            percent = random.randint(10, 100)  # Adjust range based on desired variability
+
+            # Use the move_circle method to draw the arc
+            self.arm.move_circle(pose1=pose1, pose2=pose2, percent=percent, speed=speed, mvacc=mvacc, wait=wait)
+
 
     def fill_canvas(self, line_spacing=10, speed=100):
         start_z = self.z_max
@@ -155,7 +165,7 @@ def main():
 
 
         ### TEST DRAW ARCS
-        # controller.draw_random_arcs(10)
+        controller.draw_random_arcs(10)
 
 
     finally:
