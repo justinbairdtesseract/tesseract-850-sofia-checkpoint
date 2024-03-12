@@ -15,6 +15,15 @@ onset_detection = OnsetRate()
 audio_buffer = np.array([], dtype=np.float32)
 buffer_lock = threading.Lock()
 
+def simple_peak_picking(onset_detection_function, threshold, min_distance):
+    peaks = []
+    last_peak = -min_distance
+    for i, value in enumerate(onset_detection_function):
+        if value > threshold and i - last_peak >= min_distance:
+            peaks.append(i)
+            last_peak = i
+    return peaks
+
 
 def detect_onsets():
     global audio_buffer
@@ -22,17 +31,19 @@ def detect_onsets():
         time.sleep(0.1)
         buffer_lock.acquire()
         if len(audio_buffer) > 0:
+            onset_detection_function = []
             for frame in FrameGenerator(audio_buffer, frameSize=blocksize, hopSize=hopSize, startFromZero=True):
                 windowed_frame = Windowing(type='hann')(frame)
                 fft = FFT()(windowed_frame)  # Apply FFT to get the complex spectrum
                 magnitude, phase = CartesianToPolar()(fft)  # Separate magnitude and phase
-                spectrum = Spectrum()(windowed_frame)  # This line remains unchanged
                 onset_detection = OnsetDetection(method="hfc")
-                onsets = onset_detection(magnitude, phase)  # Now providing both magnitude and phase
-                # Check for onsets here (you might need to adjust the logic to properly interpret the 'onsets' output)
-                if onsets:
-                    print("Onset detected")
-                    # Trigger your action here
+                odf = onset_detection(magnitude, phase)  # Now providing both magnitude and phase
+                onset_detection_function.append(odf)
+            # Once we have the full onset detection function, apply peak picking
+            peaks = simple_peak_picking(onset_detection_function, threshold=0.5, min_distance=512)  # Adjust these values as needed
+            for peak in peaks:
+                print(f"Onset detected at frame {peak}")
+                # Do something with detected onsets here
             audio_buffer = np.array([], dtype=np.float32)  # Clear the buffer after processing
         buffer_lock.release()
 
@@ -45,23 +56,12 @@ def estimate_audio_features():
         if len(audio_buffer) > 0:
             # Tempo estimation
             rhythm_extractor = RhythmExtractor2013(method="multifeature")
-            tempo, _, _, _, _ = rhythm_extractor(audio_buffer)
-            print(f"Estimated tempo: {tempo} BPM" if tempo > 0 else "No tempo detected.")
-
-#             # Key estimation
-#             spectral_frames = []
-#             for frame in FrameGenerator(audio_buffer, frameSize=blocksize, hopSize=hopSize, startFromZero=True):
-#                 windowed_frame = Windowing(type='hann')(frame)
-#                 spectrum_frame = Spectrum()(windowed_frame)
-#                 spectral_frames.append(spectrum_frame)
-#             if spectral_frames:
-#                 spectral_data = np.vstack(spectral_frames)
-#                 key_estimator = Key(profileType='edma', usePolyphony=True, useThreeChords=True)
-#                 print(spectral_data.shape)
-#                 key, scale, strength = key_estimator(spectral_data)
-#                 print(f"Estimated key: {key} {scale}, strength: {strength}" if key and scale else "Key estimation was unsuccessful.")
-#             else:
-#                 print("Not enough audio data for key estimation.")
+            results = rhythm_extractor(audio_buffer)
+            tempo = results[0] 
+            if tempo > 0:
+                print(f"Estimated tempo: {tempo} BPM")
+            else:
+                print("No tempo detected.")
             
             # Volume estimation
             rms = RMS()(audio_buffer)

@@ -50,25 +50,46 @@ class XArmController:
             self.z_min = min(self.canvas_corners[2][2], self.canvas_corners[0][2])
             self.z_max = max(self.canvas_corners[2][2], self.canvas_corners[0][2])
 
+    def generate_random_position(self, scale_factor=1.0):
+        """
+        Generates a random position within the canvas boundaries scaled by a specified factor.
 
-    # FUNCTIONS TO MOVE TO AND FROM CANVAS
-    def approach_canvas(self, x, y, z, speed=50):
-        # Move to a position slightly away from the canvas
+        Args:
+            scale_factor (float): The factor by which to scale the canvas size for generating a random position. 
+                                Default is 1.0 (100% of the canvas).
+
+        Returns:
+            A tuple (x, y, z) representing a random position within the scaled canvas bounds.
+        """
+        # Directly calculate the y and z coordinates within the scaled canvas size
+        random_y = random.uniform(
+            self.y_min + (self.y_max - self.y_min) * (1 - scale_factor) / 2,
+            self.y_max - (self.y_max - self.y_min) * (1 - scale_factor) / 2
+        )
+
+        random_z = random.uniform(
+            self.z_min + (self.z_max - self.z_min) * (1 - scale_factor) / 2,
+            self.z_max - (self.z_max - self.z_min) * (1 - scale_factor) / 2
+        )
+
+        random_x = self.x_from_z(random_z)
+        return (random_x, random_y, random_z)
+
+
+    # FUNCTIONS TO MOVE TO AND FROM CANVAS, 
+    def approach_canvas(self, x, y, z, roll= speed=50):
+        # Move to a position slightly away from the canvas, 
         approach_x = x - self.off_canvas_distance
-        self.arm.set_position(x=approach_x, y=y, z=z, speed=speed, wait=True)
+        self.arm.set_position(x=approach_x, y=y, z=z, roll=-180, pitch=-90, yaw=0,  speed=speed, wait=True)
+        # and then move onto canvas
+        self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
         self.osc_client.send_message("/arm/movement", "approaching")
 
     def retreat_from_canvas(self, x, y, z, speed=50):
         # Move to a position slightly away from the canvas after drawing
         retreat_x = x - self.off_canvas_distance
-        self.arm.set_position(x=retreat_x, y=y, z=z, speed=speed, wait=True)
+        self.arm.set_position(x=retreat_x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
         self.osc_client.send_message("/arm/movement", "retreating")
-
-    def move_to_position_with_approach_and_retreat(self, x, y, z, speed=50):
-        self.approach_canvas(x, y, z, speed)
-        self.arm.set_position(x=x, y=y, z=z, speed=speed, wait=True)
-        self.retreat_from_canvas(x, y, z, speed)
-
 
 
     # DRAW SPECIFIC SHAPES
@@ -78,20 +99,19 @@ class XArmController:
         self.draw_square(square_points)
 
     def draw_dot(self, x, y, z):
-        x_scaled = self.x_from_z(z)
-        self.move_to_position_with_approach_and_retreat(x_scaled, y, z, speed=100)
+        self.approach_canvas(x, y, z, speed)
+        self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+        self.retreat_from_canvas(x, y, z, speed)
 
     def draw_random_dots(self, num_dots):
         for _ in range(num_dots):
-            random_y = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
-            random_z = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
-            random_x = self.x_from_z(random_z)
-            self.draw_dot(random_x, random_y, random_z)
+            x, y, z = self.generate_random_position()  # Use the new method to generate a random position
+            self.draw_dot(x, y, z)
 
     def draw_line(self, start, end, speed=100):
         self.approach_canvas(*start, speed)
-        self.arm.set_position(x=start[0], y=start[1], z=start[2], speed=speed, wait=True)
-        self.arm.set_position(x=end[0], y=end[1], z=end[2], speed=speed, wait=True)
+        self.arm.set_position(x=start[0], y=start[1], z=start[2], roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+        self.arm.set_position(x=end[0], y=end[1], z=end[2], roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
         self.retreat_from_canvas(*end, speed)
 
     def draw_square(self, points, speed=100):
@@ -102,33 +122,28 @@ class XArmController:
             self.draw_line(start_point, end_point, speed)
 
 
-    def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, wait=True):
+    def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, circle_scaling_factor=0.5 wait=True):
         for _ in range(num_arcs):
             # Move to a random starting position on the canvas
-            random_y_start = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
-            random_z_start = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
-            random_x_start = self.x_from_z(random_z_start)
+            x_start, y_start, z_start = self.generate_random_position(circle_scaling_factor)
 
             # Approach the canvas at the random starting position
-            self.approach_canvas(random_x_start, random_y_start, random_z_start, speed)
+            self.approach_canvas(x_start, y_start, z_start, speed)
 
             # Generate pose1 and pose2 for the circle within canvas bounds
-            random_y1 = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
-            random_z1 = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
-            random_x1 = self.x_from_z(random_z1)
+            x1, y1, z1 = self.generate_random_position(circle_scaling_factor)
+            x2, y2, z2 = self.generate_random_position(circle_scaling_factor)
 
-            random_y2 = random.uniform(self.canvas_corners[3][1], self.canvas_corners[0][1])
-            random_z2 = random.uniform(self.canvas_corners[3][2], self.canvas_corners[0][2])
-            random_x2 = self.x_from_z(random_z2)
-
-            pose1 = [random_x1, random_y1, random_z1, -180, 0, 0]  # Adjust orientation as needed
-            pose2 = [random_x2, random_y2, random_z2, -180, 0, 0]  # Adjust orientation as needed
+            pose1 = [x1, y1, z1, -180, -90, 0]  # Adjust orientation as needed
+            pose2 = [x2, y2, z2, -180, -90, 0]  # Adjust orientation as needed
 
             # Randomly decide the percentage of the circle to draw
             percent = random.randint(10, 100)  # Adjust range based on desired variability
 
             # Use the move_circle method to draw the arc
             self.arm.move_circle(pose1=pose1, pose2=pose2, percent=percent, speed=speed, mvacc=mvacc, wait=wait)
+
+            self.retreat_from_canvas(x2, y2, z2,)
 
 
     def fill_canvas(self, line_spacing=10, speed=100):
@@ -153,18 +168,12 @@ class XArmController:
 def main():
     controller = XArmController('192.168.0.203')
     try:
-        # controller.draw_canvas_border()
-        # controller.draw_random_dots(10)
-
-        ### TEST, DOES THIS MOVE THAT JOINT THAT NEEDS TO BE MOVED?
         controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 
 
-        ### TEST, fill_canvas
+        # controller.draw_canvas_border()
+        # controller.draw_random_dots(10)
         # controller.fill_canvas(line_spacing=10)
-
-
-        ### TEST DRAW ARCS
         controller.draw_random_arcs(10)
 
 
