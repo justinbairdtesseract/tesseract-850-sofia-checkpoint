@@ -23,6 +23,7 @@ def clear_chunks():
         os.remove(f)
 
 def interactive(name, *args):
+    print('message recieved from max')
     max_message = list(args)
     send_audio()
 
