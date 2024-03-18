@@ -1,10 +1,14 @@
 from xarm.wrapper import XArmAPI
 from pythonosc.udp_client import SimpleUDPClient
+from pythonosc import udp_client
+from pythonosc import dispatcher
+from pythonosc import osc_server
 import math
 import random
 
 MAXMSP_IP = '127.0.0.1' # IP address of laptop 
 MAXMSP_PORT = 7654
+MAXMSP_FROM_PORT = 7655
 
 # ADD CANVAS CORNERS
 # ADD ARM IP, and make all arguments to Xarm Controller, then make controller in seperate file.. 
@@ -181,5 +185,22 @@ def main():
         controller.disconnect()
 
 
-if __name__ == '__main__':
-    main()
+
+# main()
+
+def interactive():
+    max_message = list(args)
+
+    print(max_message)
+    print()
+
+# OSC Listening
+dispatcher = dispatcher.Dispatcher()
+dispatcher.map("/macbook", interactive)
+
+server = osc_server.ThreadingOSCUDPServer((IP, PORT_FROM_MAX), dispatcher)
+print("Serving on {}".format(server.server_address))
+server.serve_forever()
+
+# close server when finished
+atexit.register(server.server_close())
