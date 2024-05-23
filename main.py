@@ -81,7 +81,7 @@ class XArmController:
 
 
     # FUNCTIONS TO MOVE TO AND FROM CANVAS, 
-    def approach_canvas(self, x, y, z, roll= speed=50):
+    def approach_canvas(self, x, y, z, roll=-180, speed=50):
         # Move to a position slightly away from the canvas, 
         approach_x = x - self.off_canvas_distance
         self.arm.set_position(x=approach_x, y=y, z=z, roll=-180, pitch=-90, yaw=0,  speed=speed, wait=True)
