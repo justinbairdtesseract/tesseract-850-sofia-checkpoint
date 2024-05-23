@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 34.0, 87.0, 1898.0, 917.0 ],
+		"rect" : [ 34.0, 87.0, 1372.0, 779.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -58,7 +58,6 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 312.5, 135.0, 93.0, 22.0 ],
-					"presentation_linecount" : 2,
 					"text" : "/macbook onset"
 				}
 
@@ -126,7 +125,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 52.0, -1134.0, 1330.0, 760.0 ],
+						"rect" : [ 305.0, 87.0, 789.0, 776.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -154,7 +153,32 @@
 						"style" : "",
 						"subpatcher_template" : "",
 						"assistshowspatchername" : 0,
+						"visible" : 1,
 						"boxes" : [ 							{
+								"box" : 								{
+									"id" : "obj-4",
+									"maxclass" : "newobj",
+									"numinlets" : 2,
+									"numoutlets" : 1,
+									"outlettype" : [ "bang" ],
+									"patching_rect" : [ 492.0, 231.0, 67.0, 22.0 ],
+									"text" : "delay 2900"
+								}
+
+							}
+, 							{
+								"box" : 								{
+									"id" : "obj-2",
+									"maxclass" : "message",
+									"numinlets" : 2,
+									"numoutlets" : 1,
+									"outlettype" : [ "" ],
+									"patching_rect" : [ 124.0, 434.0, 517.0, 22.0 ],
+									"text" : "open wave /Users/richardsavery/Dropbox/Tesseract/2024/tesseract-850/mac_files/sample1.wav"
+								}
+
+							}
+, 							{
 								"box" : 								{
 									"id" : "obj-5",
 									"maxclass" : "newobj",
@@ -172,20 +196,8 @@
 									"numinlets" : 1,
 									"numoutlets" : 2,
 									"outlettype" : [ "bang", "bang" ],
-									"patching_rect" : [ 527.0, 255.0, 32.0, 22.0 ],
+									"patching_rect" : [ 527.0, 284.0, 32.0, 22.0 ],
 									"text" : "t b b"
-								}
-
-							}
-, 							{
-								"box" : 								{
-									"id" : "obj-51",
-									"maxclass" : "newobj",
-									"numinlets" : 2,
-									"numoutlets" : 1,
-									"outlettype" : [ "bang" ],
-									"patching_rect" : [ 243.0, 209.0, 54.0, 22.0 ],
-									"text" : "delay 20"
 								}
 
 							}
@@ -208,7 +220,7 @@
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 171.0, 392.0, 29.5, 22.0 ],
+									"patching_rect" : [ 133.75, 327.0, 29.5, 22.0 ],
 									"text" : "1"
 								}
 
@@ -273,30 +285,6 @@
 							}
 , 							{
 								"box" : 								{
-									"id" : "obj-35",
-									"maxclass" : "newobj",
-									"numinlets" : 1,
-									"numoutlets" : 1,
-									"outlettype" : [ "" ],
-									"patching_rect" : [ 210.0, 334.0, 250.0, 22.0 ],
-									"text" : "sprintf open /audio_recordings/sample%i.wav"
-								}
-
-							}
-, 							{
-								"box" : 								{
-									"id" : "obj-13",
-									"maxclass" : "newobj",
-									"numinlets" : 5,
-									"numoutlets" : 4,
-									"outlettype" : [ "int", "", "", "int" ],
-									"patching_rect" : [ 210.0, 296.0, 61.0, 22.0 ],
-									"text" : "counter"
-								}
-
-							}
-, 							{
-								"box" : 								{
 									"id" : "obj-9",
 									"maxclass" : "toggle",
 									"numinlets" : 1,
@@ -337,20 +325,8 @@
 									"numinlets" : 1,
 									"numoutlets" : 1,
 									"outlettype" : [ "signal" ],
-									"patching_rect" : [ 80.0, 478.25, 59.0, 22.0 ],
+									"patching_rect" : [ 62.5, 503.25, 59.0, 22.0 ],
 									"text" : "sfrecord~"
-								}
-
-							}
-, 							{
-								"box" : 								{
-									"id" : "obj-153",
-									"linecount" : 2,
-									"maxclass" : "comment",
-									"numinlets" : 1,
-									"numoutlets" : 0,
-									"patching_rect" : [ 299.0, 209.0, 151.0, 47.0 ],
-									"text" : "safety, can be deleted after testing\n"
 								}
 
 							}
@@ -362,7 +338,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "bang" ],
 									"patching_rect" : [ 644.5, 388.0, 54.0, 22.0 ],
-									"text" : "delay 20"
+									"text" : "delay 40"
 								}
 
 							}
@@ -445,15 +421,15 @@
 							}
 , 							{
 								"patchline" : 								{
-									"destination" : [ "obj-35", 0 ],
-									"source" : [ "obj-13", 0 ]
+									"destination" : [ "obj-111", 0 ],
+									"source" : [ "obj-149", 0 ]
 								}
 
 							}
 , 							{
 								"patchline" : 								{
-									"destination" : [ "obj-111", 0 ],
-									"source" : [ "obj-149", 0 ]
+									"destination" : [ "obj-69", 0 ],
+									"source" : [ "obj-2", 0 ]
 								}
 
 							}
@@ -473,7 +449,7 @@
 							}
 , 							{
 								"patchline" : 								{
-									"destination" : [ "obj-13", 0 ],
+									"destination" : [ "obj-2", 0 ],
 									"source" : [ "obj-38", 1 ]
 								}
 
@@ -487,14 +463,21 @@
 							}
 , 							{
 								"patchline" : 								{
-									"destination" : [ "obj-51", 0 ],
+									"destination" : [ "obj-52", 0 ],
+									"source" : [ "obj-4", 0 ]
+								}
+
+							}
+, 							{
+								"patchline" : 								{
+									"destination" : [ "obj-38", 0 ],
 									"source" : [ "obj-42", 0 ]
 								}
 
 							}
 , 							{
 								"patchline" : 								{
-									"destination" : [ "obj-52", 0 ],
+									"destination" : [ "obj-4", 0 ],
 									"source" : [ "obj-42", 1 ]
 								}
 
@@ -510,13 +493,6 @@
 								"patchline" : 								{
 									"destination" : [ "obj-69", 0 ],
 									"source" : [ "obj-46", 0 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-38", 0 ],
-									"source" : [ "obj-51", 0 ]
 								}
 
 							}
@@ -1693,7 +1669,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
 									"patching_rect" : [ 444.833322644233704, 332.33333432674408, 59.0, 22.0 ],
-									"text" : "1.473182"
+									"text" : "1.403499"
 								}
 
 							}

@@ -1,3 +1,4 @@
+import atexit
 import subprocess
 import os
 import glob
@@ -7,6 +8,7 @@ from pythonosc import osc_server
 
 IP = "127.0.0.1"
 PORT_FROM_MAX = 54673
+
 
 def send_audio():
     print('sharing audio')
