@@ -6,7 +6,7 @@ from pythonosc import osc_server
 import math
 import random
 
-MAXMSP_IP = '127.0.0.1' # IP address of laptop 
+MAXMSP_IP = '192.168.0.110' # IP address of laptop 
 MAXMSP_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
@@ -126,7 +126,7 @@ class XArmController:
             self.draw_line(start_point, end_point, speed)
 
 
-    def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, circle_scaling_factor=0.5 wait=True):
+    def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, circle_scaling_factor=0.15, wait=True):
         for _ in range(num_arcs):
             # Move to a random starting position on the canvas
             x_start, y_start, z_start = self.generate_random_position(circle_scaling_factor)
@@ -142,10 +142,10 @@ class XArmController:
             pose2 = [x2, y2, z2, -180, -90, 0]  # Adjust orientation as needed
 
             # Randomly decide the percentage of the circle to draw
-            percent = random.randint(10, 100)  # Adjust range based on desired variability
+            # percent = random.randint(10, 100)  # Adjust range based on desired variability
 
             # Use the move_circle method to draw the arc
-            self.arm.move_circle(pose1=pose1, pose2=pose2, percent=percent, speed=speed, mvacc=mvacc, wait=wait)
+            self.arm.move_circle(pose1=pose1, pose2=pose2, percent=100, speed=speed, mvacc=mvacc, wait=wait)
 
             self.retreat_from_canvas(x2, y2, z2,)
 
@@ -169,38 +169,44 @@ class XArmController:
 
 
 
-def main():
-    controller = XArmController('192.168.0.203')
-    try:
-        controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
+
+controller = XArmController('192.168.0.203')
+controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 
 
         # controller.draw_canvas_border()
         # controller.draw_random_dots(10)
         # controller.fill_canvas(line_spacing=10)
-        controller.draw_random_arcs(10)
+# controller.draw_random_arcs(10)
 
 
-    finally:
-        controller.disconnect()
-
-
-
-# main()
-
-def interactive():
+def interactive(name, *args):
     max_message = list(args)
+    if max_message[0] == 'onset':
+        if max_message[1] < 0.01:
+            controller.draw_random_dots(3)
+        else:
+            x1, y1, z1 = controller.generate_random_position(0.8)
+            x2, y2, z2 = controller.generate_random_position(0.8)
+            controller.draw_line([x1, y1, z1], [x2, y2, z2])
+
 
     print(max_message)
     print()
+
 
 # OSC Listening
 dispatcher = dispatcher.Dispatcher()
 dispatcher.map("/macbook", interactive)
 
-server = osc_server.ThreadingOSCUDPServer((IP, PORT_FROM_MAX), dispatcher)
+server = osc_server.ThreadingOSCUDPServer((MAXMSP_IP, MAXMSP_FROM_PORT), dispatcher)
 print("Serving on {}".format(server.server_address))
 server.serve_forever()
 
 # close server when finished
-atexit.register(server.server_close())
+
+def on_exit():
+    controller.disconnect()
+    server.server_close()
+    
+atexit.register(on_exit())

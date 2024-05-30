@@ -9,12 +9,11 @@ from pythonosc import osc_server
 IP = "127.0.0.1"
 PORT_FROM_MAX = 54673
 
-
 def send_audio():
     print('sharing audio')
-    subprocess.run(["scp", "voice.wav", "richard@10.234.21.13:~/rapping-robot"])
+    subprocess.run(["scp", "sample.wav", "justin@192.168.0.112:~/Tessa/tesseract-850/audio_recordings"])
     print('sharing txt')
-    subprocess.run(["scp", "tiny.txt", "richard@10.234.21.13:~/rapping-robot"])
+    subprocess.run(["scp", "tiny.txt", "justin@192.168.0.112:~/Tessa/tesseract-850/audio_recordings"])
     return
 
 
