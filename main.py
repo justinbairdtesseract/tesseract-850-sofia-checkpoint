@@ -182,21 +182,24 @@ controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 def interactive(name, *args):
 
     while True:
-
         max_message = list(args)
         print(max_message)
         if max_message[0] == 'onset':
             if max_message[1] < 0.01:
                 print('drawing dots')
                 controller.draw_random_dots(3)
+                max_message = []
             elif max_message[1] < 0.1:
                 print('drawing lines')
                 x1, y1, z1 = controller.generate_random_position(0.8)
                 x2, y2, z2 = controller.generate_random_position(0.8)
                 controller.draw_line([x1, y1, z1], [x2, y2, z2])
+                max_message = []
             else:
                 print('drawing arcs')
                 controller.draw_random_arcs(1)
+                max_message = []
+                
         print('started drawing')
 
         moving = controller.arm.get_is_moving() 
@@ -208,7 +211,7 @@ def interactive(name, *args):
             time.sleep(.5)
         print('stopped moving')
             
-        max_message = []
+
 
 
 
