@@ -182,6 +182,7 @@ controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 def interactive(name, *args):
 
     while True:
+
         max_message = list(args)
         print(max_message)
         if max_message[0] == 'onset':
@@ -194,9 +195,10 @@ def interactive(name, *args):
             else:
                 controller.draw_random_arcs(1)
 
-        moving =controller.get_is_moving() 
+        moving =controller.arm.get_is_moving() 
+
         print('controller is moving? ', moving)
-        while controller.get_is_moving():
+        while controller.arm.get_is_moving():
             print('moving')
             time.sleep(.5)
             
