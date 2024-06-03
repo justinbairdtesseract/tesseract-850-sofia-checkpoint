@@ -8,13 +8,11 @@ import random
 import time
 
 LINUX_IP = '192.168.0.110' # IP address of laptop 
-MAC_IP = ''
+MAC_IP = '192.168.0.128'
 MAXMSP_TO_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
-# ADD CANVAS CORNERS
-# ADD ARM IP, and make all arguments to Xarm Controller, then make controller in seperate file.. 
-
+# ip_address is for arm
 class XArmController:
     def __init__(self, ip_address,  osc_ip=MAC_IP, osc_port=MAXMSP_TO_PORT):
         self.IP_ADDRESS = ip_address
@@ -213,7 +211,7 @@ def interactive(name, *args):
             else:
                 print('drawing arcs')
                 controller.draw_random_arcs(1)
-                
+
         controller.osc_client.send_message("/pump", 0)
 
         random_fingers = [random.choice([0, 1]) for _ in range(4)]
