@@ -211,6 +211,7 @@ def interactive(name, *args):
             else:
                 print('drawing arcs')
                 controller.draw_random_arcs(1)
+        max_message[]
 
         controller.osc_client.send_message("/pump", 0)
 
