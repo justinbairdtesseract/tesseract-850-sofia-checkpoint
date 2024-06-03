@@ -18,6 +18,7 @@ class XArmController:
         self.IP_ADDRESS = ip_address
         self.arm = XArmAPI(self.IP_ADDRESS)
         self.setup()
+        self.busy = False
 
         # Canvas corners must always stay in this order, top left, top right, bottom left, bottom right
         self.canvas_corners = [
@@ -194,31 +195,38 @@ controller.osc_client.send_message("/listen", 1)
 def interactive(name, *args):
 
     while True:
-        max_message = list(args)
-        print(max_message)
-        controller.osc_client.send_message("/listen", 0)
+        
+        if controller.busy == True:
+            print('busy')
+        else:
+            max_message = list(args)
+            print(max_message)
+            controller.osc_client.send_message("/listen", 0)
+            controller.osc_client.send_message("/pump", 1)
 
-        controller.osc_client.send_message("/pump", 1)
-        if max_message[0] == 'onset':
-            if max_message[1] < 0.01:
-                print('drawing dots')
-                controller.draw_random_dots(3)
-            elif max_message[1] < 0.1:
-                print('drawing lines')
-                x1, y1, z1 = controller.generate_random_position(0.8)
-                x2, y2, z2 = controller.generate_random_position(0.8)
-                controller.draw_line([x1, y1, z1], [x2, y2, z2])
-            else:
-                print('drawing arcs')
-                controller.draw_random_arcs(1)
-        max_message = []
 
-        controller.osc_client.send_message("/pump", 0)
+            if max_message[0] == 'onset':
+                if max_message[1] < 0.01:
+                    print('drawing dots')
+                    controller.draw_random_dots(3)
+                elif max_message[1] < 0.1:
+                    print('drawing lines')
+                    x1, y1, z1 = controller.generate_random_position(0.8)
+                    x2, y2, z2 = controller.generate_random_position(0.8)
+                    controller.draw_line([x1, y1, z1], [x2, y2, z2])
+                else:
+                    print('drawing arcs')
+                    controller.draw_random_arcs(1)
 
-        random_fingers = [random.choice([0, 1]) for _ in range(4)]
-        controller.osc_client.send_message("/fingers", random_fingers)
+            
+            max_message = []
 
-        controller.osc_client.send_message("/listen", 1)
+            controller.osc_client.send_message("/pump", 0)
+
+            random_fingers = [random.choice([0, 1]) for _ in range(4)]
+            controller.osc_client.send_message("/fingers", random_fingers)
+
+            controller.osc_client.send_message("/listen", 1)
 
 
 
