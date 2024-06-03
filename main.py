@@ -102,7 +102,7 @@ class XArmController:
         square_points = [top_left, top_right, bottom_right, bottom_left, top_left]
         self.draw_square(square_points)
 
-    def draw_dot(self, x, y, z):
+    def draw_dot(self, x, y, z, speed=200):
         self.approach_canvas(x, y, z, speed)
         self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
         self.retreat_from_canvas(x, y, z, speed)
@@ -193,6 +193,7 @@ def interactive(name, *args):
 
     print(max_message)
     print()
+    max_message = []
 
 
 # OSC Listening
