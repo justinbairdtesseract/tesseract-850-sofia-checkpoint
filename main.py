@@ -183,8 +183,8 @@ controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 def interactive(name, *args):
 
     while True:
-        print(max_message)
         max_message = list(args)
+        print(max_message)
         if max_message[0] == 'onset':
             if max_message[1] < 0.01:
                 controller.draw_random_dots(3)
