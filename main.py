@@ -187,17 +187,22 @@ def interactive(name, *args):
         print(max_message)
         if max_message[0] == 'onset':
             if max_message[1] < 0.01:
+                print('drawing dots')
                 controller.draw_random_dots(3)
             elif max_message[1] < 0.1:
+                print('drawing lines')
                 x1, y1, z1 = controller.generate_random_position(0.8)
                 x2, y2, z2 = controller.generate_random_position(0.8)
                 controller.draw_line([x1, y1, z1], [x2, y2, z2])
             else:
+                print('drawing arcs')
                 controller.draw_random_arcs(1)
+        print('started drawing')
 
-        moving =controller.arm.get_is_moving() 
+        moving = controller.arm.get_is_moving() 
 
         print('controller is moving? ', moving)
+
         while controller.arm.get_is_moving():
             print('moving')
             time.sleep(.5)
