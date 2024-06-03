@@ -197,7 +197,9 @@ def interactive(name, *args):
         max_message = []
         if controller.busy == True:
             print('busy')
+            
         else:
+            controller.busy = True
             max_message = list(args)
             print(max_message)
 
@@ -208,20 +210,26 @@ def interactive(name, *args):
                 if max_message[1] < 0.01:
                     print('drawing dots')
                     controller.draw_random_dots(3)
+                    max_message = []
                 elif max_message[1] < 0.1:
                     print('drawing lines')
                     x1, y1, z1 = controller.generate_random_position(0.8)
                     x2, y2, z2 = controller.generate_random_position(0.8)
                     controller.draw_line([x1, y1, z1], [x2, y2, z2])
+                    max_message = []
                 else:
                     print('drawing arcs')
                     controller.draw_random_arcs(1)
+                    max_message = []
+
+                controller.busy = False
 
             print('finished drawing a line, starting again')
 
             controller.osc_client.send_message("/pump", 0)
 
             random_fingers = [random.choice([0, 1]) for _ in range(4)]
+
             controller.osc_client.send_message("/fingers", random_fingers)
 
             controller.osc_client.send_message("/listen", 1)
