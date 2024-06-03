@@ -181,19 +181,21 @@ controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 
 
 def interactive(name, *args):
-    max_message = list(args)
-    if max_message[0] == 'onset':
-        if max_message[1] < 0.01:
-            controller.draw_random_dots(3)
-        else:
-            x1, y1, z1 = controller.generate_random_position(0.8)
-            x2, y2, z2 = controller.generate_random_position(0.8)
-            controller.draw_line([x1, y1, z1], [x2, y2, z2])
 
+    while True:
+        print(max_message)
+        max_message = list(args)
+        if max_message[0] == 'onset':
+            if max_message[1] < 0.01:
+                controller.draw_random_dots(3)
+            elif max_message[1] < 0.1:
+                x1, y1, z1 = controller.generate_random_position(0.8)
+                x2, y2, z2 = controller.generate_random_position(0.8)
+                controller.draw_line([x1, y1, z1], [x2, y2, z2])
+            else:
+                controller.draw_random_arcs(1)
 
-    print(max_message)
-    print()
-    max_message = []
+        max_message = []
 
 
 # OSC Listening
