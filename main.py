@@ -201,6 +201,7 @@ def interactive(name, *args):
         while controller.arm.get_is_moving():
             print('moving')
             time.sleep(.5)
+        print('stopped moving')
             
         max_message = []
 
