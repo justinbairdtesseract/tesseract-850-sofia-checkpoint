@@ -194,7 +194,8 @@ def interactive(name, *args):
             else:
                 controller.draw_random_arcs(1)
 
-
+        moving =controller.get_is_moving() 
+        print('controller is moving? ', moving)
         while controller.get_is_moving():
             print('moving')
             time.sleep(.5)
