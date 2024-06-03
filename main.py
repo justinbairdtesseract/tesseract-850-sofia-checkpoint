@@ -5,6 +5,7 @@ from pythonosc import dispatcher
 from pythonosc import osc_server
 import math
 import random
+import time
 
 MAXMSP_IP = '192.168.0.110' # IP address of laptop 
 MAXMSP_PORT = 7654
@@ -168,8 +169,6 @@ class XArmController:
         self.arm.disconnect()
 
 
-
-
 controller = XArmController('192.168.0.203')
 controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
 
@@ -195,7 +194,13 @@ def interactive(name, *args):
             else:
                 controller.draw_random_arcs(1)
 
+
+        while controller.get_is_moving():
+            print('moving')
+            time.sleep(.5)
+            
         max_message = []
+
 
 
 # OSC Listening
