@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 899.0, -1081.0, 1417.0, 791.0 ],
+		"rect" : [ 899.0, -1081.0, 1153.0, 791.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -39,6 +39,41 @@
 		"subpatcher_template" : "",
 		"assistshowspatchername" : 0,
 		"boxes" : [ 			{
+				"box" : 				{
+					"id" : "obj-29",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 779.0, 511.0, 32.0, 22.0 ],
+					"text" : "print"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-27",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 648.0, 354.0, 176.0, 22.0 ],
+					"text" : "/macbook onset 0.00752"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-21",
+					"maxclass" : "number",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "bang" ],
+					"parameter_enable" : 0,
+					"patching_rect" : [ 1201.0, 38.0, 50.0, 22.0 ]
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"id" : "obj-28",
 					"maxclass" : "toggle",
@@ -80,7 +115,8 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 1164.0, 143.0, 50.0, 22.0 ]
+					"patching_rect" : [ 1164.0, 143.0, 50.0, 22.0 ],
+					"text" : "-5"
 				}
 
 			}
@@ -103,8 +139,8 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 366.0, 437.0, 344.0, 22.0 ],
-					"text" : "/macbook onset 0.011317"
+					"patching_rect" : [ 240.0, 469.0, 344.0, 22.0 ],
+					"text" : "/macbook onset 0.00752"
 				}
 
 			}
@@ -1761,7 +1797,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
 									"patching_rect" : [ 444.833322644233704, 332.33333432674408, 59.0, 22.0 ],
-									"text" : "1.86748"
+									"text" : "1.624424"
 								}
 
 							}
@@ -3384,8 +3420,8 @@
 					"numinlets" : 5,
 					"numoutlets" : 5,
 					"outlettype" : [ "", "", "", "", "" ],
-					"patching_rect" : [ 1013.0, 196.5, 250.0, 22.0 ],
-					"text" : "route /arm/movement/ /listen/ /fingers/ /pump/"
+					"patching_rect" : [ 1013.0, 196.5, 237.0, 22.0 ],
+					"text" : "route /arm/movement /listen /fingers /pump"
 				}
 
 			}
@@ -3462,6 +3498,13 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "obj-20", 1 ],
+					"source" : [ "obj-21", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "obj-11", 0 ],
 					"source" : [ "obj-22", 0 ]
 				}
@@ -3477,7 +3520,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-11", 1 ],
-					"order" : 1,
+					"order" : 3,
 					"source" : [ "obj-25", 0 ]
 				}
 
@@ -3485,7 +3528,23 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-18", 1 ],
+					"order" : 2,
+					"source" : [ "obj-25", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-27", 1 ],
 					"order" : 0,
+					"source" : [ "obj-25", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-29", 0 ],
+					"order" : 1,
 					"source" : [ "obj-25", 0 ]
 				}
 

@@ -193,7 +193,6 @@ controller.osc_client.send_message("/listen", 1)
 
 
 def interactive(name, *args):
-
     while True:
         max_message = []
         if controller.busy == True:
@@ -201,6 +200,7 @@ def interactive(name, *args):
         else:
             max_message = list(args)
             print(max_message)
+
             controller.osc_client.send_message("/listen", 0)
             controller.osc_client.send_message("/pump", 1)
 
@@ -216,6 +216,8 @@ def interactive(name, *args):
                 else:
                     print('drawing arcs')
                     controller.draw_random_arcs(1)
+
+            print('finished drawing a line, starting again')
 
             controller.osc_client.send_message("/pump", 0)
 
