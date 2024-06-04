@@ -19,6 +19,8 @@ class XArmController:
         self.arm = XArmAPI(self.IP_ADDRESS)
         self.setup()
         self.busy = False
+        self.fingers_allowed = 1
+        self.strokes_since_colour_change = 0
 
         # Canvas corners must always stay in this order, top left, top right, bottom left, bottom right
         self.canvas_corners = [
@@ -193,8 +195,6 @@ controller.osc_client.send_message("/listen", 1)
 
 
 def interactive(name, *args):
-    max_message = []
-
     if controller.busy == True:
         print('busy')
 
@@ -204,35 +204,49 @@ def interactive(name, *args):
         print(max_message)
 
         controller.osc_client.send_message("/listen", 0)
-        controller.osc_client.send_message("/pump", 1)
+
+        if max_message[0] == 'fingers':
+            controller.fingers_allowed =  max_message[1]
+            print('fingers allowed changed to ',  max_message[1])
+
+        if max_message[0] == 'suggested_fingers':
+            suggested_fingers =  max_message[1]
+            if controller.strokes_since_colour_change > 3:
+                if suggested_fingers > controller.fingers_allowed:
+                    fingers_to_use =  controller.fingers_allowed
+                else:
+                    fingers_to_use = suggested_fingers
+                random_fingers = [1] * fingers_to_use + [0] * (4 - fingers_to_use)
+                random.shuffle(random_fingers)
+                controller.osc_client.send_message("/fingers", random_fingers)
+
+            # GENERATE FINGERS TO USE
+
+            else:
+                print('to recent too change number of fingers')
+            print('fingers allowed changed to ',  max_message[1])
 
         if max_message[0] == 'onset':
-            if max_message[1] < 0.02:
-                print('too soft')
-            elif max_message[1] < 0.1:
+            if max_message[1] == 'dots':
                 print('drawing dots')
                 controller.draw_random_dots(3)
-                max_message = []
-            elif max_message[1] < 0.2:
+            elif max_message[1] == 'lines':
                 print('drawing lines')
                 x1, y1, z1 = controller.generate_random_position(0.8)
                 x2, y2, z2 = controller.generate_random_position(0.8)
                 controller.draw_line([x1, y1, z1], [x2, y2, z2])
-                max_message = []
-            else:
+            elif  max_message[1] == 'arcs':
                 print('drawing arcs')
                 controller.draw_random_arcs(1)
-                max_message = []
+            else:
+                print('incorrect drawing type')
 
             controller.busy = False
+        
+        print('finished drawing, listening again')
 
-        print('finished drawing a line, starting again')
-
-        controller.osc_client.send_message("/pump", 0)
-
-        random_fingers = [random.choice([0, 1]) for _ in range(4)]
-
-        controller.osc_client.send_message("/fingers", random_fingers)
+        
+        controller.strokes_since_colour_change += 1
 
         controller.osc_client.send_message("/listen", 1)
 
