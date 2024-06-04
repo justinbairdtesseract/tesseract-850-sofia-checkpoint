@@ -210,7 +210,7 @@ def interactive(name, *args):
 
     if max_message[0] == 'suggested_fingers':
         suggested_fingers =  max_message[1]
-        if controller.strokes_since_colour_change > 3:
+        if controller.strokes_since_colour_change > 4:
             if suggested_fingers > controller.fingers_allowed:
                 fingers_to_use =  controller.fingers_allowed
             else:
@@ -218,9 +218,8 @@ def interactive(name, *args):
             random_fingers = [1] * fingers_to_use + [0] * (4 - fingers_to_use)
             random.shuffle(random_fingers)
             controller.osc_client.send_message("/fingers", random_fingers)
-
-        # GENERATE FINGERS TO USE
-
+            controller.strokes_since_colour_change = 0
+  
         else:
             print('to recent too change number of fingers')
         print('fingers allowed changed to ',  max_message[1])
