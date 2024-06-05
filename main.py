@@ -12,6 +12,8 @@ MAC_IP = '192.168.0.128'
 MAXMSP_TO_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
+MOVE_BETWEEN_SPEED = 100
+
 # ip_address is for arm
 class XArmController:
     def __init__(self, ip_address,  osc_ip=MAC_IP, osc_port=MAXMSP_TO_PORT):
@@ -99,9 +101,10 @@ class XArmController:
 
     # FUNCTIONS TO MOVE TO AND FROM CANVAS, 
     def approach_canvas(self, x, y, z, roll=-180, speed=50):
+        # speed is for the move onto canvas, don't change
         # Move to a position slightly away from the canvas, 
         approach_x = x - self.off_canvas_distance
-        self.arm.set_position(x=approach_x, y=y, z=z, roll=-180, pitch=-90, yaw=0,  speed=speed, wait=True)
+        self.arm.set_position(x=approach_x, y=y, z=z, roll=-180, pitch=-90, yaw=0,  speed=MOVE_BETWEEN_SPEED, wait=True)
         # and then move onto canvas
         self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
         self.osc_client.send_message("/arm/movement", "approaching")
