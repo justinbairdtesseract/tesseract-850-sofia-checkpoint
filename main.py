@@ -224,7 +224,6 @@ def interactive(name, *args):
     
             else:
                 print('to recent too change number of fingers')
-            print('fingers allowed changed to ',  max_message[1])
 
         if max_message[0] == 'onset':
             if max_message[1] == 'dots':
