@@ -89,11 +89,12 @@
 , 			{
 				"box" : 				{
 					"id" : "obj-19",
+					"linecount" : 3,
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 599.0, 601.0, 150.0, 20.0 ],
-					"text" : "PANIC ON?OFF"
+					"patching_rect" : [ 599.0, 601.0, 150.0, 47.0 ],
+					"text" : "PANIC ON/OFF\nUncheck this box for PANIC MODE"
 				}
 
 			}
