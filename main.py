@@ -197,10 +197,10 @@ controller.osc_client.send_message("/listen", 1)
 
 
 def interactive(name, *args):
-    if controller.allowed_to_play:
-        max_message = list(args)
-        print(max_message)
+    max_message = list(args)
+    print(max_message)
 
+    if controller.allowed_to_play:
         controller.osc_client.send_message("/listen", 0)
 
         if max_message[0] == 'fingers':
@@ -248,6 +248,7 @@ def interactive(name, *args):
             controller.osc_client.send_message("/listen", 1)
     else:
         print("In PANIC MODE")
+    
     
     if max_message[0] == 'panic':
         if max_message[1] == 1:
