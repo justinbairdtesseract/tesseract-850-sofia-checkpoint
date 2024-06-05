@@ -204,24 +204,21 @@ def interactive(name, *args):
 
     if max_message[0] == 'homing':
         if max_message[1] == 'draw_border':
-            controller.draw_canvas_border()  
-        elif max_message[1] == 'top_left':
+            controller.draw_canvas_border()
+        else: 
+            if max_message[1] == 'top_left':
+                controller.canvas_corners[0] = [max_message[2], max_message[3], max_message[4]]
+            elif max_message[1] == 'top_right':
+                controller.canvas_corners[1] = [max_message[2], max_message[3], max_message[4]]
+            elif max_message[1] == 'bottom_left':
+                controller.canvas_corners[2] = [max_message[2], max_message[3], max_message[4]]
+            elif max_message[1] == 'bottom_right':
+                controller.canvas_corners[3] = [max_message[2], max_message[3], max_message[4]]
             controller.set_position(x=max_message[2], y=max_message[3], z=max_message[4], roll=-180, pitch=-90, yaw=0,  speed=100, wait=True)
-            controller.canvas_corners[0] = [max_message[2], max_message[3], max_message[4]]
-        elif max_message[1] == 'top_right':
-            controller.set_position(x=max_message[2], y=max_message[3], z=max_message[4], roll=-180, pitch=-90, yaw=0,  speed=100, wait=True)
-            controller.canvas_corners[1] = [max_message[2], max_message[3], max_message[4]]
-        elif max_message[1] == 'bottom_left':
-            controller.set_position(x=max_message[2], y=max_message[3], z=max_message[4], roll=-180, pitch=-90, yaw=0,  speed=100, wait=True)
-            controller.canvas_corners[2] = [max_message[2], max_message[3], max_message[4]]
-        elif max_message[1] == 'bottom_right':
-            controller.set_position(x=max_message[2], y=max_message[3], z=max_message[4], roll=-180, pitch=-90, yaw=0,  speed=100, wait=True)
-            controller.canvas_corners[3] = [max_message[2], max_message[3], max_message[4]]
-
-        controller.calculate_scaling_factors()
-        controller.calculate_canvas_bounds()
-        print('new canvas corners')
-        print(controller.canvas_corners)
+            controller.calculate_scaling_factors()
+            controller.calculate_canvas_bounds()
+            print('new canvas corners')
+            print(controller.canvas_corners)
 
     if controller.allowed_to_play:
         controller.osc_client.send_message("/listen", 0)
