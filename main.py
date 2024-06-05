@@ -248,7 +248,8 @@ def interactive(name, *args):
             
             controller.strokes_since_colour_change += 1
 
-            controller.osc_client.send_message("/listen", 1)
+        controller.osc_client.send_message("/listen", 1)
+
     else:
         print("In PANIC MODE")
     
@@ -260,6 +261,8 @@ def interactive(name, *args):
         else:
             controller.allowed_to_play = False
             print('PANIC TIME!')
+
+    
 
 
 
