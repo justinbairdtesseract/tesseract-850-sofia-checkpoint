@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 818.0, -844.0, 640.0, 480.0 ],
+		"rect" : [ 72.0, -1267.0, 2156.0, 1233.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -47,18 +47,6 @@
 					"numoutlets" : 0,
 					"patching_rect" : [ 97.0, 18.0, 193.0, 74.0 ],
 					"text" : "Retreating - brush moves away from canvas, stop painting\n\nApproaching - brush moves towards canvas, start painting"
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"id" : "obj-299",
-					"maxclass" : "newobj",
-					"numinlets" : 0,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 6.0, 210.0, 45.0, 22.0 ],
-					"text" : "r panic"
 				}
 
 			}
@@ -1137,7 +1125,7 @@
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 474.0, 659.0, 109.0, 141.0 ],
+					"patching_rect" : [ 474.0, 659.0, 112.0, 141.0 ],
 					"text" : "This selector only turns on and off the finger pump if both the finger and the approach are both 1.  Doing this independently for each finger lets us turn on one or more pumps"
 				}
 
@@ -3154,7 +3142,7 @@
 				"box" : 				{
 					"comment" : "",
 					"id" : "obj-2",
-					"index" : 0,
+					"index" : 2,
 					"maxclass" : "inlet",
 					"numinlets" : 0,
 					"numoutlets" : 1,
@@ -3167,7 +3155,7 @@
 				"box" : 				{
 					"comment" : "",
 					"id" : "obj-1",
-					"index" : 0,
+					"index" : 1,
 					"maxclass" : "inlet",
 					"numinlets" : 0,
 					"numoutlets" : 1,
@@ -4433,13 +4421,6 @@
 			}
 , 			{
 				"patchline" : 				{
-					"destination" : [ "obj-5", 0 ],
-					"source" : [ "obj-299", 0 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
 					"destination" : [ "obj-32", 0 ],
 					"source" : [ "obj-31", 0 ]
 				}
@@ -4945,9 +4926,7 @@
 				}
 
 			}
- ],
-		"dependency_cache" : [  ],
-		"autosave" : 0
+ ]
 	}
 
 }
