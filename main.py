@@ -12,7 +12,7 @@ MAC_IP = '192.168.0.128'
 MAXMSP_TO_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
-MOVE_BETWEEN_SPEED = 100
+MOVE_BETWEEN_SPEED = 500
 
 # ip_address is for arm
 class XArmController:
@@ -224,7 +224,7 @@ def interactive(name, *args):
     
             else:
                 print('to recent too change number of fingers')
-            print('fingers allowed changed to ',  max_message[1])
+            print('fingers allowed changed to ',  max_message[1])3
 
         if max_message[0] == 'onset':
             if max_message[1] == 'dots':
