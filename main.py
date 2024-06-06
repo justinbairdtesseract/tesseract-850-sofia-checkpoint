@@ -114,6 +114,7 @@ class XArmController:
         retreat_x = x - self.off_canvas_distance
         self.arm.set_position(x=retreat_x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
         self.osc_client.send_message("/arm/movement", "retreating")
+        self.osc_client.send_message("/listen", 1)
 
 
     # DRAW SPECIFIC SHAPES
@@ -258,12 +259,9 @@ def interactive(name, *args):
                 print('incorrect drawing type')
 
             print('finished drawing, listening again')
-
             
             controller.strokes_since_colour_change += 1
-
-        controller.osc_client.send_message("/listen", 1)
-
+    
     else:
         print("In PANIC MODE")
     
