@@ -147,7 +147,7 @@ class XArmController:
             self.draw_line(start_point, end_point, speed)
 
 
-    def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, circle_scaling_factor=0.15, wait=True):
+    def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, circle_scaling_factor=0.25, wait=True):
         for _ in range(num_arcs):
             # Move to a random starting position on the canvas
             x_start, y_start, z_start = self.generate_random_position(circle_scaling_factor)
