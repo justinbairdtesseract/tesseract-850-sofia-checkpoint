@@ -242,8 +242,8 @@ def interactive(name, *args):
         #     print('to recent too change number of fingers')
 
     if controller.allowed_to_play:
-        controller.osc_client.send_message("/listen", 0)
         if max_message[0] == 'onset':
+            controller.osc_client.send_message("/listen", 0)
             if max_message[1] == 'dots':
                 print('drawing dots')
                 controller.draw_random_dots(1)
