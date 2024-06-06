@@ -220,28 +220,27 @@ def interactive(name, *args):
             print('new canvas corners')
             print(controller.canvas_corners)
 
+    if max_message[0] == 'fingers':
+        controller.fingers_allowed =  max_message[1]
+        print('fingers allowed changed to ',  max_message[1])
+
+    if max_message[0] == 'suggested_fingers':
+        suggested_fingers =  max_message[1]
+        if controller.strokes_since_colour_change > 4:
+            if suggested_fingers > controller.fingers_allowed:
+                fingers_to_use =  controller.fingers_allowed
+            else:
+                fingers_to_use = suggested_fingers
+            random_fingers = [1] * fingers_to_use + [0] * (4 - fingers_to_use)
+            random.shuffle(random_fingers)
+            controller.osc_client.send_message("/fingers", random_fingers)
+            controller.strokes_since_colour_change = 0
+
+        else:
+            print('to recent too change number of fingers')
+
     if controller.allowed_to_play:
         controller.osc_client.send_message("/listen", 0)
-
-        if max_message[0] == 'fingers':
-            controller.fingers_allowed =  max_message[1]
-            print('fingers allowed changed to ',  max_message[1])
-
-        if max_message[0] == 'suggested_fingers':
-            suggested_fingers =  max_message[1]
-            if controller.strokes_since_colour_change > 4:
-                if suggested_fingers > controller.fingers_allowed:
-                    fingers_to_use =  controller.fingers_allowed
-                else:
-                    fingers_to_use = suggested_fingers
-                random_fingers = [1] * fingers_to_use + [0] * (4 - fingers_to_use)
-                random.shuffle(random_fingers)
-                controller.osc_client.send_message("/fingers", random_fingers)
-                controller.strokes_since_colour_change = 0
-    
-            else:
-                print('to recent too change number of fingers')
-
         if max_message[0] == 'onset':
             if max_message[1] == 'dots':
                 print('drawing dots')
