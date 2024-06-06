@@ -162,6 +162,11 @@ class XArmController:
             pose1 = [x1, y1, z1, -180, -90, 0]  # Adjust orientation as needed
             pose2 = [x2, y2, z2, -180, -90, 0]  # Adjust orientation as needed
 
+            print('arc positions')
+            print(x_start, y_start, z_start)
+            print (pose1)
+            print (pose2)
+
             # Randomly decide the percentage of the circle to draw
             # percent = random.randint(10, 100)  # Adjust range based on desired variability
 

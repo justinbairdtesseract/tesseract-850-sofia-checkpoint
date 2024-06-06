@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 511.0, -1251.0, 1509.0, 850.0 ],
+		"rect" : [ 268.0, -1212.0, 1234.0, 894.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -84,7 +84,6 @@
 						"style" : "",
 						"subpatcher_template" : "",
 						"assistshowspatchername" : 0,
-						"visible" : 1,
 						"boxes" : [ 							{
 								"box" : 								{
 									"id" : "obj-60",
@@ -2141,7 +2140,7 @@
 					"patching_rect" : [ 1068.5, 494.0, 151.0, 22.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 1044.5, 467.0, 151.0, 22.0 ],
-					"text" : "/macbook onset lines"
+					"text" : "/macbook onset dots"
 				}
 
 			}
@@ -2243,7 +2242,7 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 975.0, 532.5, 32.0, 22.0 ],
+					"patching_rect" : [ 966.5, 599.5, 32.0, 22.0 ],
 					"text" : "gate"
 				}
 
@@ -2302,7 +2301,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 970.5, 574.083331000000044, 164.0, 22.0 ],
+					"patching_rect" : [ 966.5, 636.083331000000044, 164.0, 22.0 ],
 					"text" : "udpsend 192.168.0.110 7655"
 				}
 
@@ -2368,12 +2367,13 @@
 , 							{
 								"box" : 								{
 									"id" : "obj-82",
+									"linecount" : 2,
 									"maxclass" : "message",
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 185.0, 217.0, 50.0, 22.0 ],
-									"text" : "1"
+									"patching_rect" : [ 185.0, 217.0, 50.0, 35.0 ],
+									"text" : "1 1 1 1 1 1"
 								}
 
 							}
@@ -3778,12 +3778,13 @@
 , 							{
 								"box" : 								{
 									"id" : "obj-60",
+									"linecount" : 2,
 									"maxclass" : "message",
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 1137.5, 560.0, 107.0, 22.0 ],
-									"text" : "1"
+									"patching_rect" : [ 1137.5, 560.0, 107.0, 35.0 ],
+									"text" : "1 0 11 -1 1 0 11 6 11 -1"
 								}
 
 							}
@@ -3796,7 +3797,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
 									"patching_rect" : [ 1197.0, 560.0, 80.0, 35.0 ],
-									"text" : "1 11 -1 11 10 9"
+									"text" : "1 10 -1 10 -1 10 -1"
 								}
 
 							}
@@ -3808,7 +3809,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
 									"patching_rect" : [ 1262.0, 560.0, 134.0, 22.0 ],
-									"text" : "1 -1"
+									"text" : "1 0 11 0 1 -1"
 								}
 
 							}
