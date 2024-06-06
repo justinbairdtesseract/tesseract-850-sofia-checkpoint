@@ -236,8 +236,8 @@ def interactive(name, *args):
             controller.osc_client.send_message("/fingers", random_fingers)
             controller.strokes_since_colour_change = 0
 
-        else:
-            print('to recent too change number of fingers')
+        # else:
+        #     print('to recent too change number of fingers')
 
     if controller.allowed_to_play:
         controller.osc_client.send_message("/listen", 0)
