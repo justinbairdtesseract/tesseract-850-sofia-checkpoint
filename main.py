@@ -159,6 +159,15 @@ class XArmController:
             x1, y1, z1 = self.generate_random_position(circle_scaling_factor)
             x2, y2, z2 = self.generate_random_position(circle_scaling_factor)
 
+            radius = math.sqrt((x1 - x_start) ** 2 + (y1 - y_start) ** 2 + (z1 - z_start) ** 2) 
+            # Check if the radius is greater than 50
+            print('predicted radius: ', radius)
+
+            if radius > 50:
+                print(f'Skipping arc with radius {radius} (greater than 50)')
+                self.retreat_from_canvas(x_start, y_start, z_start)
+                continue
+
             pose1 = [x1, y1, z1, -180, -90, 0]  # Adjust orientation as needed
             pose2 = [x2, y2, z2, -180, -90, 0]  # Adjust orientation as needed
 
