@@ -200,7 +200,8 @@ controller.osc_client.send_message("/listen", 1)
 
 def interactive(name, *args):
     max_message = list(args)
-    print(max_message)
+    if max_message[0] != 'suggested_fingers':
+        print(max_message)
 
     if max_message[0] == 'homing':
         if max_message[1] == 'draw_border':
@@ -270,9 +271,11 @@ def interactive(name, *args):
     if max_message[0] == 'panic':
         if max_message[1] == 1:
             controller.allowed_to_play = True
+            controller.osc_client.send_message("/listen", 1)
             print('panic off, ready to play')
         else:
             controller.allowed_to_play = False
+            controller.osc_client.send_message("/listen", 0)
             print('PANIC TIME!')
 
     
