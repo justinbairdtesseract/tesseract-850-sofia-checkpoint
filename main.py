@@ -246,7 +246,7 @@ def interactive(name, *args):
         if max_message[0] == 'onset':
             if max_message[1] == 'dots':
                 print('drawing dots')
-                controller.draw_random_dots(3)
+                controller.draw_random_dots(1)
             elif max_message[1] == 'lines':
                 print('drawing lines')
                 x1, y1, z1 = controller.generate_random_position(0.8)
