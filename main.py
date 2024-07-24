@@ -35,7 +35,11 @@ class XArmController:
         ]
         self.calculate_scaling_factors()
         self.calculate_canvas_bounds()
+
         self.off_canvas_distance = 25  # Distance to start away from the canvas on the x-axis
+
+        self.paint_pressure_range = 5
+        self.current_pressure = 0 # 0 full pressure
 
         self.osc_client = SimpleUDPClient(osc_ip, osc_port)
 
@@ -95,7 +99,7 @@ class XArmController:
             self.z_max - (self.z_max - self.z_min) * (1 - scale_factor) / 2
         )
 
-        random_x = self.x_from_z(random_z)
+        random_x = self.x_from_z(random_z) - self.current_pressure # if you subtract getting further away 
         return (random_x, random_y, random_z)
 
 
@@ -240,6 +244,13 @@ def interactive(name, *args):
         controller.fingers_allowed =  max_message[1]
         print('fingers allowed changed to ',  max_message[1])
 
+    if max_message[0] == 'pressure':
+        if max_message[1] <= controller.paint_pressure_range:
+            controller.current_pressure = max_message[1]
+            print('pressure changed to ',  max_message[1])
+        else: 
+            print('incorrect pressure value')
+
     if max_message[0] == 'suggested_fingers':
         suggested_fingers =  max_message[1]
         if controller.strokes_since_colour_change > 4:
@@ -263,8 +274,8 @@ def interactive(name, *args):
                 controller.draw_random_dots(1)
             elif max_message[1] == 'lines':
                 print('drawing lines')
-                x1, y1, z1 = controller.generate_random_position(0.8)
-                x2, y2, z2 = controller.generate_random_position(0.8)
+                x1, y1, z1 = controller.generate_random_position(1)
+                x2, y2, z2 = controller.generate_random_position(1)
                 controller.draw_line([x1, y1, z1], [x2, y2, z2])
             elif  max_message[1] == 'arcs':
                 print('drawing arcs')
