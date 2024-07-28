@@ -260,6 +260,7 @@ def interactive(name, *args):
             else:
                 fingers_to_use = suggested_fingers
             random_fingers = [1] * fingers_to_use + [0] * (4 - fingers_to_use)
+            print('randon fingers', random_fingers)
             random.shuffle(random_fingers)
             controller.osc_client.send_message("/fingers", random_fingers)
             controller.strokes_since_colour_change = 0
