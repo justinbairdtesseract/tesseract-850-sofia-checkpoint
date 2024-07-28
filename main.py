@@ -167,7 +167,7 @@ class XArmController:
             # Check if the radius is greater than 50
             print('predicted radius: ', radius)
 
-            if radius > 50:
+            if radius > 25:
                 print(f'Skipping arc with radius {radius} (greater than 50)')
                 self.retreat_from_canvas(x_start, y_start, z_start)
                 continue
