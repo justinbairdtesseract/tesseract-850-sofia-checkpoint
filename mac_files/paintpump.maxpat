@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 171.0, -1072.0, 1641.0, 911.0 ],
+		"rect" : [ 177.0, 87.0, 1229.0, 779.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -58,7 +58,6 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 247.0, 138.5, 127.0, 22.0 ],
-					"presentation_linecount" : 2,
 					"text" : "/macbook pressure $1"
 				}
 
@@ -604,7 +603,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 0.0, 0.0, 640.0, 480.0 ],
+						"rect" : [ 771.0, 241.0, 618.0, 480.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -639,7 +638,7 @@
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 50.0, 232.0, 55.0, 22.0 ],
+									"patching_rect" : [ 80.0, 260.0, 55.0, 22.0 ],
 									"text" : "pipe 200"
 								}
 
@@ -651,7 +650,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 2,
 									"outlettype" : [ "int", "int" ],
-									"patching_rect" : [ 50.0, 205.0, 32.0, 22.0 ],
+									"patching_rect" : [ 80.0, 212.0, 32.0, 22.0 ],
 									"text" : "t 1 0"
 								}
 
@@ -664,7 +663,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "int" ],
 									"parameter_enable" : 0,
-									"patching_rect" : [ 125.5, 137.0, 24.0, 24.0 ]
+									"patching_rect" : [ 140.5, 140.0, 24.0, 24.0 ]
 								}
 
 							}
@@ -721,7 +720,7 @@
 						"lines" : [ 							{
 								"patchline" : 								{
 									"destination" : [ "obj-58", 0 ],
-									"order" : 1,
+									"order" : 0,
 									"source" : [ "obj-37", 0 ]
 								}
 
@@ -729,7 +728,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-62", 0 ],
-									"order" : 0,
+									"order" : 1,
 									"source" : [ "obj-37", 0 ]
 								}
 
@@ -3223,7 +3222,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ -408.0, -1143.0, 1826.0, 953.0 ],
+						"rect" : [ 34.0, 87.0, 1372.0, 779.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -3833,7 +3832,7 @@
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 1137.5, 560.0, 107.0, 35.0 ],
+									"patching_rect" : [ 1137.5, 560.0, 107.0, 22.0 ],
 									"text" : "1"
 								}
 
@@ -3845,7 +3844,7 @@
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 1197.0, 560.0, 80.0, 35.0 ],
+									"patching_rect" : [ 1197.0, 560.0, 80.0, 22.0 ],
 									"text" : "1"
 								}
 
