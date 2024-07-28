@@ -21,7 +21,7 @@ class XArmController:
         self.arm = XArmAPI(self.IP_ADDRESS)
         self.setup()
         self.busy = False
-        self.fingers_allowed = 1
+        self.fingers_allowed = 4
         self.strokes_since_colour_change = 0
 
         self.allowed_to_play = True
@@ -252,6 +252,7 @@ def interactive(name, *args):
             print('incorrect pressure value')
 
     if max_message[0] == 'suggested_fingers':
+        print('real fingers to use: ', controller.fingers_allowed)
         suggested_fingers =  max_message[1]
         if controller.strokes_since_colour_change > 4:
             if suggested_fingers > controller.fingers_allowed:
