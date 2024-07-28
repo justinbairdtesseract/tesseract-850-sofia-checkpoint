@@ -253,16 +253,11 @@ def interactive(name, *args):
 
     if max_message[0] == 'suggested_fingers':
         suggested_fingers =  max_message[1]
-        print(f'Suggested fingers: {suggested_fingers}')
-        print(f'Allowed fingers: {controller.fingers_allowed}')
-        print(f'Strokes since colour change: {controller.strokes_since_colour_change}')
-
         if controller.strokes_since_colour_change > 4:
             if suggested_fingers > controller.fingers_allowed:
                 fingers_to_use =  controller.fingers_allowed
             else:
                 fingers_to_use = suggested_fingers
-            print(f'Before shuffling: {random_fingers}')
             random_fingers = [1] * fingers_to_use + [0] * (4 - fingers_to_use)
             random.shuffle(random_fingers)
             controller.osc_client.send_message("/fingers", random_fingers)
