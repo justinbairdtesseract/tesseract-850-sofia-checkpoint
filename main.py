@@ -104,7 +104,7 @@ class XArmController:
         if self.use_video:
             cx, cy = vision.get_face_center()
             print('center point', cx, cy)
-            random_x, random_y, random_z = self.scale_to_canvas(self, camera_x, camera_y)
+            random_x, random_y, random_z = self.scale_to_canvas(self, cx, cy)
             print('camera position', random_x, random_y, random_z)
             random_x, random_y, random_z = 546, 100, 835 # comment out after testing camera 
         else: 
