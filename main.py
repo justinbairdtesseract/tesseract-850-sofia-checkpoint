@@ -89,6 +89,7 @@ class XArmController:
             self.z_max = max(self.canvas_corners[2][2], self.canvas_corners[0][2])
 
     def generate_random_position(self, scale_factor=1.0):
+        print('using video postion', self.use_video)
         """
         Generates a random position within the canvas boundaries scaled by a specified factor.
 
@@ -102,6 +103,7 @@ class XArmController:
         # Directly calculate the y and z coordinates within the scaled canvas size
         if self.use_video:
             cx, cy = vision.get_face_center()
+            print('center point', cx, cy)
             random_x, random_y, random_z = scale_to_canvas(self, camera_x, camera_y)
             print('camera position', random_x, random_y, random_z)
             random_x, random_y, random_z = 546, 100, 835 # comment out after testing camera 
