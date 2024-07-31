@@ -34,8 +34,8 @@ class XArmController:
         self.allowed_to_play = True
 
         self.use_video = False
-        self.camera_width = 1280
-        self.camera_height = 720
+        self.camera_width = 640
+        self.camera_height = 480
 
         # Canvas corners must always stay in this order, top left, top right, bottom left, bottom right
         self.canvas_corners = [
