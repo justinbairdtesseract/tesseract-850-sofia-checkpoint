@@ -102,8 +102,9 @@ class XArmController:
         # Directly calculate the y and z coordinates within the scaled canvas size
         if self.use_video:
             cx, cy = vision.get_face_center()
-            random_x, random_y, random_z) = scale_to_canvas(self, camera_x, camera_y)
-            
+            random_x, random_y, random_z = scale_to_canvas(self, camera_x, camera_y)
+            print('camera position', random_x, random_y, random_z)
+            random_x, random_y, random_z = 546, 100, 835 # comment out after testing camera 
         else: 
             random_y = random.uniform(
                 self.y_min + (self.y_max - self.y_min) * (1 - scale_factor) / 2,
