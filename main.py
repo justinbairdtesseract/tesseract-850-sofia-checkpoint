@@ -17,8 +17,8 @@ MAXMSP_FROM_PORT = 7655
 MOVE_BETWEEN_SPEED = 500
 
 
-# face_detection_thread = vision.start_face_detection('webcam', True)
-face_detection_thread = vision.start_face_detection('filepath', True) # False to not display video
+face_detection_thread = vision.start_face_detection('webcam', True)
+# face_detection_thread = vision.start_face_detection('filepath', True) # False to not display video
 
 
 # ip_address is for arm
