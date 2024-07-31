@@ -40,12 +40,60 @@
 		"assistshowspatchername" : 0,
 		"boxes" : [ 			{
 				"box" : 				{
+					"id" : "obj-51",
+					"maxclass" : "toggle",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "int" ],
+					"parameter_enable" : 0,
+					"patching_rect" : [ 245.0, 185.0, 24.0, 24.0 ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-40",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 245.0, 234.5, 109.0, 22.0 ],
+					"text" : "/macbook video $1"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-41",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 245.0, 273.5, 164.0, 22.0 ],
+					"text" : "udpsend 192.168.0.110 7655"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-42",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 275.5, 185.0, 150.0, 34.0 ],
+					"presentation" : 1,
+					"presentation_rect" : [ 265.0, 193.0, 150.0, 34.0 ],
+					"text" : "video\n"
+				}
+
+			}
+, 			{
+				"box" : 				{
 					"id" : "obj-8",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 247.0, 17.0, 70.0, 22.0 ],
+					"patching_rect" : [ 245.0, 17.0, 70.0, 22.0 ],
 					"text" : "loadmess 1"
 				}
 
@@ -57,7 +105,7 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 247.0, 138.5, 127.0, 22.0 ],
+					"patching_rect" : [ 245.0, 94.5, 127.0, 22.0 ],
 					"text" : "/macbook pressure $1"
 				}
 
@@ -68,7 +116,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 247.0, 220.0, 164.0, 22.0 ],
+					"patching_rect" : [ 245.0, 133.5, 164.0, 22.0 ],
 					"text" : "udpsend 192.168.0.110 7655"
 				}
 
@@ -79,7 +127,7 @@
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 261.0, 54.5, 150.0, 20.0 ],
+					"patching_rect" : [ 262.0, 41.0, 150.0, 20.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 261.0, 57.5, 150.0, 20.0 ],
 					"text" : "Pressure"
@@ -96,7 +144,7 @@
 					"numoutlets" : 2,
 					"outlettype" : [ "", "bang" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 247.0, 84.0, 83.0, 22.0 ],
+					"patching_rect" : [ 245.0, 63.0, 83.0, 22.0 ],
 					"presentation" : 1,
 					"presentation_rect" : [ 247.0, 87.0, 83.0, 22.0 ]
 				}
@@ -4851,6 +4899,13 @@
 			}
 , 			{
 				"patchline" : 				{
+					"destination" : [ "obj-41", 0 ],
+					"source" : [ "obj-40", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
 					"destination" : [ "obj-21", 0 ],
 					"source" : [ "obj-43", 0 ]
 				}
@@ -4874,6 +4929,13 @@
 				"patchline" : 				{
 					"destination" : [ "obj-47", 0 ],
 					"source" : [ "obj-50", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-40", 0 ],
+					"source" : [ "obj-51", 0 ]
 				}
 
 			}
@@ -5176,7 +5238,7 @@
 ,
 		"dependency_cache" : [ 			{
 				"name" : "painter.maxpat",
-				"bootpath" : "~/Desktop/mac_files 2",
+				"bootpath" : "~/Dropbox/Tesseract/2024/tesseract-850/mac_files",
 				"patcherrelativepath" : ".",
 				"type" : "JSON",
 				"implicit" : 1
@@ -5184,14 +5246,14 @@
 , 			{
 				"name" : "zsa.abs_flux~.maxpat",
 				"bootpath" : "~/Documents/Max 8/Packages/zsa.descriptors/misc",
-				"patcherrelativepath" : "../../Documents/Max 8/Packages/zsa.descriptors/misc",
+				"patcherrelativepath" : "../../../../../Documents/Max 8/Packages/zsa.descriptors/misc",
 				"type" : "JSON",
 				"implicit" : 1
 			}
 , 			{
 				"name" : "zsa.easy_flux~.maxpat",
 				"bootpath" : "~/Documents/Max 8/Packages/zsa.descriptors/misc",
-				"patcherrelativepath" : "../../Documents/Max 8/Packages/zsa.descriptors/misc",
+				"patcherrelativepath" : "../../../../../Documents/Max 8/Packages/zsa.descriptors/misc",
 				"type" : "JSON",
 				"implicit" : 1
 			}

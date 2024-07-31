@@ -33,7 +33,7 @@ class XArmController:
 
         self.allowed_to_play = True
 
-        self.use_camera = False
+        self.use_video = False
         self.camera_width = 1280
         self.camera_height = 720
 
@@ -100,7 +100,7 @@ class XArmController:
             A tuple (x, y, z) representing a random position within the scaled canvas bounds.
         """
         # Directly calculate the y and z coordinates within the scaled canvas size
-        if self.use_camera:
+        if self.use_video:
             cx, cy = vision.get_face_center()
             random_x, random_y, random_z) = scale_to_canvas(self, camera_x, camera_y)
             
@@ -266,6 +266,12 @@ def interactive(name, *args):
             controller.calculate_canvas_bounds()
             print('new canvas corners')
             print(controller.canvas_corners)
+
+    if max_message[0] == 'video':
+        if max_message[1] = 1
+            controller.arm.use_video = True
+        else:
+            controller.arm.use_video = False
 
     if max_message[0] == 'fingers':
         controller.fingers_allowed =  max_message[1]
