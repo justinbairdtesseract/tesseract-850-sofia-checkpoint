@@ -271,11 +271,10 @@ def interactive(name, *args):
             print(controller.canvas_corners)
 
     if max_message[0] == 'video':
-        print('why video', max_message[1])
         if max_message[1] == 1:
-            controller.arm.use_video = True
+            controller.use_video = True
         else:
-            controller.arm.use_video = False
+            controller.use_video = False
 
     if max_message[0] == 'fingers':
         controller.fingers_allowed =  max_message[1]
