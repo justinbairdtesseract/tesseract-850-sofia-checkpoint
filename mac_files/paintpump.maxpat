@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 564.0, 87.0, 842.0, 779.0 ],
+		"rect" : [ 784.0, -787.0, 1641.0, 911.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -324,7 +324,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 285.0, 87.0, 1121.0, 775.0 ],
+						"rect" : [ 646.0, -1000.0, 1121.0, 775.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -603,7 +603,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 771.0, 241.0, 618.0, 480.0 ],
+						"rect" : [ 0.0, 0.0, 640.0, 480.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -638,7 +638,7 @@
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 80.0, 260.0, 55.0, 22.0 ],
+									"patching_rect" : [ 50.0, 232.0, 55.0, 22.0 ],
 									"text" : "pipe 200"
 								}
 
@@ -650,7 +650,7 @@
 									"numinlets" : 1,
 									"numoutlets" : 2,
 									"outlettype" : [ "int", "int" ],
-									"patching_rect" : [ 80.0, 212.0, 32.0, 22.0 ],
+									"patching_rect" : [ 50.0, 205.0, 32.0, 22.0 ],
 									"text" : "t 1 0"
 								}
 
@@ -663,7 +663,7 @@
 									"numoutlets" : 1,
 									"outlettype" : [ "int" ],
 									"parameter_enable" : 0,
-									"patching_rect" : [ 140.5, 140.0, 24.0, 24.0 ]
+									"patching_rect" : [ 125.5, 137.0, 24.0, 24.0 ]
 								}
 
 							}
@@ -720,7 +720,7 @@
 						"lines" : [ 							{
 								"patchline" : 								{
 									"destination" : [ "obj-58", 0 ],
-									"order" : 0,
+									"order" : 1,
 									"source" : [ "obj-37", 0 ]
 								}
 
@@ -728,7 +728,7 @@
 , 							{
 								"patchline" : 								{
 									"destination" : [ "obj-62", 0 ],
-									"order" : 1,
+									"order" : 0,
 									"source" : [ "obj-37", 0 ]
 								}
 
@@ -1785,7 +1785,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 898.0, 87.0, 508.0, 683.0 ],
+						"rect" : [ 512.0, -1178.0, 1118.0, 683.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -3222,7 +3222,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 34.0, 292.0, 1372.0, 779.0 ],
+						"rect" : [ -408.0, -1143.0, 1826.0, 953.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -3251,19 +3251,6 @@
 						"subpatcher_template" : "",
 						"assistshowspatchername" : 0,
 						"boxes" : [ 							{
-								"box" : 								{
-									"format" : 6,
-									"id" : "obj-4",
-									"maxclass" : "flonum",
-									"numinlets" : 1,
-									"numoutlets" : 2,
-									"outlettype" : [ "", "bang" ],
-									"parameter_enable" : 0,
-									"patching_rect" : [ 500.0, 408.0, 50.0, 22.0 ]
-								}
-
-							}
-, 							{
 								"box" : 								{
 									"id" : "obj-34",
 									"maxclass" : "newobj",
@@ -3845,7 +3832,7 @@
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 1137.5, 560.0, 107.0, 22.0 ],
+									"patching_rect" : [ 1137.5, 560.0, 107.0, 35.0 ],
 									"text" : "1"
 								}
 
@@ -3857,7 +3844,7 @@
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 1197.0, 560.0, 80.0, 22.0 ],
+									"patching_rect" : [ 1197.0, 560.0, 80.0, 35.0 ],
 									"text" : "1"
 								}
 
@@ -4244,13 +4231,6 @@
 								"patchline" : 								{
 									"destination" : [ "obj-20", 0 ],
 									"source" : [ "obj-21", 2 ]
-								}
-
-							}
-, 							{
-								"patchline" : 								{
-									"destination" : [ "obj-4", 0 ],
-									"source" : [ "obj-21", 0 ]
 								}
 
 							}
@@ -5196,7 +5176,7 @@
 ,
 		"dependency_cache" : [ 			{
 				"name" : "painter.maxpat",
-				"bootpath" : "~/Dropbox/Tesseract/2024/tesseract-850/mac_files",
+				"bootpath" : "~/Desktop/mac_files 2",
 				"patcherrelativepath" : ".",
 				"type" : "JSON",
 				"implicit" : 1
@@ -5204,14 +5184,14 @@
 , 			{
 				"name" : "zsa.abs_flux~.maxpat",
 				"bootpath" : "~/Documents/Max 8/Packages/zsa.descriptors/misc",
-				"patcherrelativepath" : "../../../../../Documents/Max 8/Packages/zsa.descriptors/misc",
+				"patcherrelativepath" : "../../Documents/Max 8/Packages/zsa.descriptors/misc",
 				"type" : "JSON",
 				"implicit" : 1
 			}
 , 			{
 				"name" : "zsa.easy_flux~.maxpat",
 				"bootpath" : "~/Documents/Max 8/Packages/zsa.descriptors/misc",
-				"patcherrelativepath" : "../../../../../Documents/Max 8/Packages/zsa.descriptors/misc",
+				"patcherrelativepath" : "../../Documents/Max 8/Packages/zsa.descriptors/misc",
 				"type" : "JSON",
 				"implicit" : 1
 			}
