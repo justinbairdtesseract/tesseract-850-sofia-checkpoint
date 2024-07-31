@@ -6,6 +6,8 @@ from pythonosc import osc_server
 import math
 import random
 import time
+import vision 
+
 
 LINUX_IP = '192.168.0.110' # IP address of laptop 
 MAC_IP = '192.168.0.128'
@@ -13,6 +15,11 @@ MAXMSP_TO_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
 MOVE_BETWEEN_SPEED = 500
+
+
+# face_detection_thread = vision.start_face_detection('webcam', True)
+face_detection_thread = vision.start_face_detection('filepath', True) # False to not display video
+
 
 # ip_address is for arm
 class XArmController:
@@ -25,6 +32,10 @@ class XArmController:
         self.strokes_since_colour_change = 0
 
         self.allowed_to_play = True
+
+        self.use_camera = False
+        self.camera_width = 1280
+        self.camera_height = 720
 
         # Canvas corners must always stay in this order, top left, top right, bottom left, bottom right
         self.canvas_corners = [
@@ -89,18 +100,32 @@ class XArmController:
             A tuple (x, y, z) representing a random position within the scaled canvas bounds.
         """
         # Directly calculate the y and z coordinates within the scaled canvas size
-        random_y = random.uniform(
-            self.y_min + (self.y_max - self.y_min) * (1 - scale_factor) / 2,
-            self.y_max - (self.y_max - self.y_min) * (1 - scale_factor) / 2
-        )
+        if self.use_camera:
+            cx, cy = vision.get_face_center()
+            random_x, random_y, random_z) = scale_to_canvas(self, camera_x, camera_y)
+            
+        else: 
+            random_y = random.uniform(
+                self.y_min + (self.y_max - self.y_min) * (1 - scale_factor) / 2,
+                self.y_max - (self.y_max - self.y_min) * (1 - scale_factor) / 2
+            )
 
-        random_z = random.uniform(
-            self.z_min + (self.z_max - self.z_min) * (1 - scale_factor) / 2,
-            self.z_max - (self.z_max - self.z_min) * (1 - scale_factor) / 2
-        )
+            random_z = random.uniform(
+                self.z_min + (self.z_max - self.z_min) * (1 - scale_factor) / 2,
+                self.z_max - (self.z_max - self.z_min) * (1 - scale_factor) / 2
+            )
 
-        random_x = self.x_from_z(random_z) - self.current_pressure # if you subtract getting further away 
+            random_x = self.x_from_z(random_z) - self.current_pressure # if you subtract getting further away 
         return (random_x, random_y, random_z)
+
+
+    # VISION FUNCTIONS
+    def scale_to_canvas(self, camera_x, camera_y):
+        scaled_y = self.y_min + (camera_y / self.camera_height) * (self.y_max - self.y_min)
+        scaled_z = self.z_min + (camera_x / self.camera_width) * (self.z_max - self.z_min)
+        scaled_x = self.x_from_z(scaled_z)
+
+        return scaled_x, scaled_y, scaled_z
 
 
     # FUNCTIONS TO MOVE TO AND FROM CANVAS, 
@@ -207,6 +232,8 @@ class XArmController:
         self.arm.disconnect()
 
 
+
+
 # Arm IP address
 controller = XArmController('192.168.0.203')
 controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
@@ -275,6 +302,7 @@ def interactive(name, *args):
             elif max_message[1] == 'lines':
                 print('drawing lines')
                 x1, y1, z1 = controller.generate_random_position(1)
+                time.sleep(.5)
                 x2, y2, z2 = controller.generate_random_position(1)
                 controller.draw_line([x1, y1, z1], [x2, y2, z2])
             elif  max_message[1] == 'arcs':
