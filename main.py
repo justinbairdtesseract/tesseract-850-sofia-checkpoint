@@ -103,9 +103,11 @@ class XArmController:
         # Directly calculate the y and z coordinates within the scaled canvas size
         if self.use_video:
             cx, cy = vision.get_face_center()
-            print('center point', cx, cy)
-            random_x, random_y, random_z = self.scale_to_canvas(cx, cy)
-            print('camera position', random_x, random_y, random_z)
+            eye_rotation = self.calculate_eye_rotation()
+            print('Center point from camera:', cx, cy)
+            print('Eye rotation:', eye_rotation)
+            random_x, random_y, random_z = self.scale_to_canvas(cx, cy, eye_rotation)
+            print('Scaled camera position:', random_x, random_y, random_z)
             random_x, random_y, random_z = 546, 100, 835 # comment out after testing camera 
         else: 
             random_y = random.uniform(
@@ -124,11 +126,24 @@ class XArmController:
 
     # VISION FUNCTIONS
     def scale_to_canvas(self, camera_x, camera_y):
-        scaled_y = self.y_min + (camera_y / self.camera_height) * (self.y_max - self.y_min)
+        scaled_y = self.y_min + ((eye_rotation + math.pi/2) / math.pi) * (self.y_max - self.y_min)
         scaled_z = self.z_min + (camera_x / self.camera_width) * (self.z_max - self.z_min)
         scaled_x = self.x_from_z(scaled_z)
 
         return scaled_x, scaled_y, scaled_z
+
+    def calculate_eye_rotation(self):
+        """
+        Calculate the relative angle of the eyes.
+
+        Returns:
+            float: The relative angle of the eyes.
+        """
+        left_eye, right_eye = vision.get_eye_centers()
+        dx = right_eye[0] - left_eye[0]
+        dy = right_eye[1] - left_eye[1]
+        angle = math.atan2(dy, dx)  # Calculate the angle in radians
+        return angle
 
 
     # FUNCTIONS TO MOVE TO AND FROM CANVAS, 
