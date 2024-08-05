@@ -108,7 +108,7 @@ class XArmController:
             print('Eye rotation:', eye_rotation)
             random_x, random_y, random_z = self.scale_to_canvas(cx, cy, eye_rotation)
             print('Scaled camera position:', random_x, random_y, random_z)
-            random_x, random_y, random_z = 546, 100, 835 # comment out after testing camera 
+            random_x, random_y, random_z = 510, 100, 835 # comment out after testing camera 
         else: 
             random_y = random.uniform(
                 self.y_min + (self.y_max - self.y_min) * (1 - scale_factor) / 2,
