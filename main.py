@@ -18,7 +18,7 @@ MOVE_BETWEEN_SPEED = 500
 
 
 face_detection_thread = vision.start_face_mesh('webcam', True)
-# face_detection_thread = vision.start_face_detection('filepath', True) # False to not display video
+# face_detection_thread = vision.start_face_mesh('filepath', True) # False to not display video
 
 
 # ip_address is for arm
@@ -126,11 +126,12 @@ class XArmController:
 
     # VISION FUNCTIONS
     def scale_to_canvas(self, camera_x, camera_y):
-        scaled_y = self.y_min + ((eye_rotation + math.pi/2) / math.pi) * (self.y_max - self.y_min)
+        rotation_factor = (eye_rotation + math.pi/4) / (math.pi/2)  # Normalize angle to [0, 1] range
+        scaled_y = self.y_min + rotation_factor * (self.y_max - self.y_min)
         scaled_z = self.z_min + (camera_x / self.camera_width) * (self.z_max - self.z_min)
         scaled_x = self.x_from_z(scaled_z)
-
         return scaled_x, scaled_y, scaled_z
+
 
     def calculate_eye_rotation(self):
         """

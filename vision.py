@@ -1,3 +1,5 @@
+# vision.py
+
 import cv2
 import mediapipe as mp
 import threading
@@ -5,6 +7,7 @@ import threading
 # Initialize MediaPipe Face Mesh
 mp_face_mesh = mp.solutions.face_mesh
 mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
 
 face_center = (0, 0)  # Global variable to store face center coordinates
 left_eye_center = (0, 0)
@@ -23,7 +26,7 @@ def process_frame(image, display):
         for face_landmarks in results.multi_face_landmarks:
             ih, iw, _ = image.shape
 
-            # Get coordinates for the face center
+            # Get coordinates for the face center (using landmark 1 which is near the tip of the nose)
             cx = int(face_landmarks.landmark[1].x * iw)
             cy = int(face_landmarks.landmark[1].y * ih)
 
@@ -37,7 +40,12 @@ def process_frame(image, display):
 
             # Draw the face mesh and eye positions on the image
             if display:
-                mp_drawing.draw_landmarks(image, face_landmarks, mp_face_mesh.FACE_CONNECTIONS)
+                mp_drawing.draw_landmarks(
+                    image,
+                    face_landmarks,
+                    mp_face_mesh.FACEMESH_TESSELATION,
+                    landmark_drawing_spec=None,
+                    connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_tesselation_style())
                 cv2.circle(image, left_eye_center, 5, (255, 0, 0), cv2.FILLED)
                 cv2.circle(image, right_eye_center, 5, (255, 0, 0), cv2.FILLED)
                 cv2.circle(image, (cx, cy), 5, (0, 255, 0), cv2.FILLED)
