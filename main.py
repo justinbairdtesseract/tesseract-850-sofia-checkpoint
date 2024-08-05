@@ -130,7 +130,7 @@ class XArmController:
         
         scaled_z = self.z_min + rotation_factor * (self.z_max - self.z_min)
 
-        scaled_y = self.y_min + (camera_x / self.camera_width) * (self.y_max - self.y_min) * y_scale_factor
+        scaled_y = self.y_min + (camera_x / self.camera_width) * (self.y_max - self.y_min)
 
         scaled_x = self.x_from_z(scaled_z)
         return scaled_x, scaled_y, scaled_z
