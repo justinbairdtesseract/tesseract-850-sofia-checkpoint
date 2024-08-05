@@ -106,7 +106,7 @@ class XArmController:
             eye_rotation = self.calculate_eye_rotation()
             print('Center point from camera:', cx, cy)
             print('Eye rotation:', eye_rotation)
-            random_x, random_y, random_z = self.scale_to_canvas(cx, cy, eye_rotation)
+            random_x, random_y, random_z = self.scale_to_canvas(cx, eye_rotation)
             print('Scaled camera position:', random_x, random_y, random_z)
             random_x, random_y, random_z = 510, 100, 835 # comment out after testing camera 
         else: 
@@ -125,7 +125,7 @@ class XArmController:
 
 
     # VISION FUNCTIONS
-    def scale_to_canvas(self, camera_x, camera_y, eye_rotation):
+    def scale_to_canvas(self, camera_x, eye_rotation):
         rotation_factor = (eye_rotation + math.pi/4) / (math.pi/2)  # Normalize angle to [0, 1] range
         scaled_y = self.y_min + rotation_factor * (self.y_max - self.y_min)
         scaled_z = self.z_min + (camera_x / self.camera_width) * (self.z_max - self.z_min)
