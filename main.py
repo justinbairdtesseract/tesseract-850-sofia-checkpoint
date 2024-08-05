@@ -17,7 +17,7 @@ MAXMSP_FROM_PORT = 7655
 MOVE_BETWEEN_SPEED = 500
 
 
-face_detection_thread = vision.start_face_detection('webcam', True)
+face_detection_thread = vision.start_face_mesh('webcam', True)
 # face_detection_thread = vision.start_face_detection('filepath', True) # False to not display video
 
 
@@ -281,7 +281,7 @@ def interactive(name, *args):
             elif max_message[1] == 'bottom_right':
                 controller.canvas_corners[3] = [max_message[2], max_message[3], max_message[4]]
             
-            if max_message[2] == 1:
+            if max_message[5] == 1:
                 controller.arm.set_position(x=max_message[2], y=max_message[3], z=max_message[4], roll=-180, pitch=-90, yaw=0,  speed=100, wait=True)
             controller.calculate_scaling_factors()
             controller.calculate_canvas_bounds()
