@@ -14,7 +14,7 @@ MAC_IP = '192.168.0.128'
 MAXMSP_TO_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
-MOVE_BETWEEN_SPEED = 500
+MOVE_BETWEEN_SPEED = 400
 
 
 face_detection_thread = vision.start_face_mesh('webcam', True)
@@ -39,10 +39,10 @@ class XArmController:
 
         # Canvas corners must always stay in this order, top left, top right, bottom left, bottom right
         self.canvas_corners = [
-            [546, 205, 835],  # top_left
-            [546, -333, 835], # top_right
-            [508, 205, 88],   # bottom_left
-            [508, -333, 88]   # bottom_right
+            [400, 200, 780],  # top_left
+            [400, -200, 780], # top_right
+            [400, 200, 100],   # bottom_left
+            [400, -200, 100]   # bottom_right
         ]
         self.calculate_scaling_factors()
         self.calculate_canvas_bounds()
@@ -108,7 +108,7 @@ class XArmController:
             print('Eye rotation:', eye_rotation)
             random_x, random_y, random_z = self.scale_to_canvas(cx, cy, eye_rotation)
             print('Scaled camera position:', random_x, random_y, random_z)
-            random_x, random_y, random_z = 510, 100, 835 # comment out after testing camera 
+            # random_x, random_y, random_z = 510, 100, 835 # comment out after testing camera 
         else: 
             random_y = random.uniform(
                 self.y_min + (self.y_max - self.y_min) * (1 - scale_factor) / 2,
