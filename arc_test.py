@@ -92,6 +92,7 @@ class XArmController:
             # Stop the arm mid-arc
             self.arm.set_state(state=4)
             print('state stop')
+            print('current position: ', self.arm.get_position()) # Get current position of the arm)
             time.sleep(.5)
             self.arm.set_state(state=0)
             print('state start')
