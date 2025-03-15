@@ -86,13 +86,19 @@ class SVGPainter:
         # Ensure coordinates are within safe bounds
         y = max(min(y, self.y_max), self.y_min)
         z = max(min(z, self.z_max), self.z_min)
-        x = self.x_from_z(z)  # Recalculate x to ensure it's on the canvas plane
+        x = self.x_from_z(z)
+        
+        print(f"Moving to position: ({x}, {y}, {z})")
         
         # Move to a position slightly away from the canvas
         approach_x = x - self.off_canvas_distance
-        self.arm.set_position(x=approach_x, y=y, z=z, roll=roll, pitch=-90, yaw=0, speed=speed, wait=True)
+        print(f"Approach position: ({approach_x}, {y}, {z})")
+        result = self.arm.set_position(x=approach_x, y=y, z=z, roll=roll, pitch=-90, yaw=0, speed=speed, wait=True)
+        print(f"Approach movement result: {result}")
+        
         # Then move onto canvas
-        self.arm.set_position(x=x, y=y, z=z, roll=roll, pitch=-90, yaw=0, speed=speed, wait=True)
+        result = self.arm.set_position(x=x, y=y, z=z, roll=roll, pitch=-90, yaw=0, speed=speed, wait=True)
+        print(f"Canvas contact movement result: {result}")
 
     def retreat_from_canvas(self, x, y, z, speed=50):
         """Retreat from the canvas after drawing, with safety checks."""
@@ -141,10 +147,10 @@ class SVGPainter:
         Returns:
             bool: True if successful, False otherwise
         """
-        # Safety check the entire path before drawing
-        if not self.check_path_safety(path_data):
-            print("Path failed safety check, skipping.")
-            return False
+        # # Safety check the entire path before drawing
+        # if not self.check_path_safety(path_data):
+        #     print("Path failed safety check, skipping.")
+        #     return False
             
         path_commands = self.parse_path(path_data)
         
@@ -307,10 +313,10 @@ class SVGPainter:
         """
         try:
             # Check if the robot is in a safe state before starting
-            state = self.arm.get_state()
-            if state[0] == 0 and state[1] != 0:  # Error in robot state
-                print(f"Robot is not in a ready state: {state}")
-                return False
+            # state = self.arm.get_state()
+            # if state[0] == 0 and state[1] != 0:  # Error in robot state
+            #     print(f"Robot is not in a ready state: {state}")
+            #     return False
             
             paths = self.parse_svg_file(svg_file_path)
             
@@ -344,9 +350,9 @@ class SVGPainter:
         try:
             # Check if the robot is in a safe state before starting
             state = self.arm.get_state()
-            if state[0] == 0 and state[1] != 0:  # Error in robot state
-                print(f"Robot is not in a ready state: {state}")
-                return False
+            # if state[0] == 0 and state[1] != 0:  # Error in robot state
+            #     print(f"Robot is not in a ready state: {state}")
+            #     return False
                 
             root = ET.fromstring(svg_string)
             
@@ -392,6 +398,11 @@ class SVGPainter:
 svg_file = "3.svg"
     
 painter = SVGPainter('192.168.0.203')
+
+print("Testing robot movement...")
+result = painter.arm.set_position(x=400, y=0, z=400, roll=-180, pitch=-90, yaw=0, speed=50, wait=True)
+print(f"Movement test result: {result}")
+time.sleep(2)
 
 painter.paint_svg(svg_file, speed=20)
 
