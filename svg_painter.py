@@ -393,6 +393,6 @@ svg_file = "3.svg"
     
 painter = SVGPainter('192.168.0.203')
 
-painter.paint_svg(svg_file, speed=50)
+painter.paint_svg(svg_file, speed=20)
 
 painter.disconnect()
