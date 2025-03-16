@@ -671,5 +671,143 @@ class SVGPainter:
         except Exception as e:
             print(f"Error during SVG painting from string: {e}")
             # Emergency stop if something goes wrong
+            self.arm.emergency_stop()
+    
+        
+    def test_drawing(self, test_type="square", size=100, speed=20):
+        """
+        Test the robot's drawing capabilities with simple shapes.
+        
+        Args:
+            test_type (str): Type of test to run - "square", "circle", "zigzag", or "calibration"
+            size (float): Size of the test pattern in mm
+            speed (int): Drawing speed
+            
+        Returns:
+            bool: True if test completed successfully
+        """
+        print(f"Running {test_type} test with size {size}mm at speed {speed}")
+        
+        # Go to canvas center
+        center_z = (self.z_min + self.z_max) / 2
+        center_y = (self.y_min + self.y_max) / 2
+        center_x = self.x_from_z(center_z)
+        
+        # Move to a safe position first
+        safe_x = center_x - self.off_canvas_distance
+        result = self.arm.set_position(x=safe_x, y=center_y, z=center_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+        
+        if result[0] != 0:
+            print(f"Error moving to center: {result}")
             return False
+        
+        if test_type == "square":
+            # Calculate square corners in robot coordinates
+            half_size = size / 2
+            corners = [
+                (center_y - half_size, center_z - half_size),  # Bottom left
+                (center_y - half_size, center_z + half_size),  # Top left
+                (center_y + half_size, center_z + half_size),  # Top right
+                (center_y + half_size, center_z - half_size),  # Bottom right
+                (center_y - half_size, center_z - half_size)   # Back to start
+            ]
+            
+            # Move to first corner
+            y, z = corners[0]
+            x = self.x_from_z(z)
+            self.approach_canvas(x, y, z, speed=speed)
+            
+            # Draw the square
+            for y, z in corners[1:]:
+                x = self.x_from_z(z)
+                self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            
+            # Lift pen
+            self.retreat_from_canvas(x, y, z, speed=speed)
+            
+        elif test_type == "circle":
+            # Draw a circle centered at the canvas center
+            radius = size / 2
+            steps = 36  # Number of segments to approximate the circle
+            
+            # Move to first point of circle
+            first_y = center_y + radius
+            first_z = center_z
+            first_x = self.x_from_z(first_z)
+            self.approach_canvas(first_x, first_y, first_z, speed=speed)
+            
+            # Draw the circle
+            for angle in np.linspace(0, 2*np.pi, steps)[1:]:
+                y = center_y + radius * np.cos(angle)
+                z = center_z + radius * np.sin(angle)
+                x = self.x_from_z(z)
+                self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            
+            # Lift pen
+            self.retreat_from_canvas(x, y, z, speed=speed)
+            
+        elif test_type == "zigzag":
+            # Draw a zigzag pattern across the canvas
+            zigzag_width = size
+            zigzag_height = size / 2
+            steps = 10  # Number of zigzag segments
+            
+            # Start at bottom left of zigzag
+            start_y = center_y - zigzag_width/2
+            start_z = center_z - zigzag_height/2
+            start_x = self.x_from_z(start_z)
+            self.approach_canvas(start_x, start_y, start_z, speed=speed)
+            
+            # Draw zigzag
+            for i in range(steps):
+                # Alternate between top and bottom points
+                z = center_z + zigzag_height/2 if i % 2 == 0 else center_z - zigzag_height/2
+                y = start_y + (i+1) * zigzag_width / steps
+                x = self.x_from_z(z)
+                self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            
+            # Lift pen
+            self.retreat_from_canvas(x, y, z, speed=speed)
+            
+        elif test_type == "calibration":
+            # Draw a calibration pattern that tests the edges of the canvas
+            margin = 20  # mm from edge
+            
+            # Define the calibration pattern points as (y, z) coordinates
+            cal_points = [
+                (self.y_min + margin, self.z_min + margin),      # Bottom left
+                (self.y_min + margin, self.z_max - margin),      # Top left 
+                (self.y_max - margin, self.z_max - margin),      # Top right
+                (self.y_max - margin, self.z_min + margin),      # Bottom right
+                (self.y_min + margin, self.z_min + margin),      # Back to bottom left
+                # Center cross
+                (center_y, center_z - size/2),                   # Bottom of cross
+                (center_y, center_z + size/2),                   # Top of cross
+                (center_y, center_z),                            # Center
+                (center_y - size/2, center_z),                   # Left of cross
+                (center_y + size/2, center_z)                    # Right of cross
+            ]
+            
+            # Draw each segment of the calibration pattern
+            for i, (y, z) in enumerate(cal_points):
+                x = self.x_from_z(z)
                 
+                if i == 0:  # First point
+                    self.approach_canvas(x, y, z, speed=speed)
+                elif i == 5:  # Start of cross
+                    self.retreat_from_canvas(x, y, z, speed=speed)
+                    self.approach_canvas(x, y, z, speed=speed)
+                elif i == 7:  # Middle of cross
+                    self.retreat_from_canvas(x, y, z, speed=speed)
+                    self.approach_canvas(x, y, z, speed=speed)
+                else:
+                    self.arm.set_position(x=x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            
+            # Lift pen at the end
+            self.retreat_from_canvas(x, y, z, speed=speed)
+        
+        # Return to safe position
+        self.arm.set_position(x=safe_x, y=center_y, z=center_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+        
+        print(f"{test_type} test completed")
+        return True
