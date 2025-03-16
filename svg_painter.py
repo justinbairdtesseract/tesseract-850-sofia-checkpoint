@@ -7,6 +7,7 @@ import numpy as np
 
 class SVGPainter:
     def __init__(self, ip_address='192.168.0.203'):
+        self.debug = True
         self.IP_ADDRESS = ip_address
         self.arm = XArmAPI(self.IP_ADDRESS)
         self.setup()
@@ -22,6 +23,7 @@ class SVGPainter:
         # SVG scaling parameters
         self.svg_width = 600  # Default SVG width
         self.svg_height = 600  # Default SVG height
+    
         
         # Robot parameters
         self.off_canvas_distance = 25  # Distance to start away from the canvas on the x-axis
@@ -29,8 +31,7 @@ class SVGPainter:
         self.calculate_scaling_factors()
         self.calculate_canvas_bounds()
         
-        # Debug mode
-        self.debug = True
+
 
     def setup(self):
         """Initialize the robot arm."""

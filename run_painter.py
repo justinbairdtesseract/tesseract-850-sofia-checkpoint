@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Test script for the SVG Painter to validate its functionality
-"""
-
 import os
 import time
 from svg_painter import SVGPainter
