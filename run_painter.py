@@ -51,9 +51,7 @@ def main():
         print("\nOperation interrupted by user")
     except Exception as e:
         print(f"Error during execution: {e}")
-    finally:
-        # Always disconnect properly
-        painter.disconnect()
+
 
 if __name__ == "__main__":
     main()

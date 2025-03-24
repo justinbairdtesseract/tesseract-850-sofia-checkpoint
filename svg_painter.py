@@ -1,9 +1,12 @@
-from xarm.wrapper import XArmAPI
-import xml.etree.ElementTree as ET
+import sys
+import time
+import os
 import re
 import math
-import time
 import numpy as np
+import xml.etree.ElementTree as ET
+
+from xarm.wrapper import XArmAPI
 
 class SVGPainter:
     def __init__(self, ip_address='192.168.0.203'):
@@ -30,10 +33,7 @@ class SVGPainter:
         self.calculate_canvas_bounds()
         
         # Drawing parameters
-        self.bezier_steps = 15  # Increased from 10 for smoother curves
-        
-        # Namespace for SVG parsing
-        self.ns = {'svg': 'http://www.w3.org/2000/svg'}
+        self.bezier_steps = 15  # For smoother curves
 
     def setup(self):
         """Initialize the robot arm."""
@@ -45,15 +45,24 @@ class SVGPainter:
         self.arm.set_servo_angle(servo_id=5, angle=90, speed=20, wait=True)
         
         # Enable collision detection (if supported by your model)
-        self.arm.set_collision_sensitivity(1)
+        try:
+            self.arm.set_collision_sensitivity(1)
+        except:
+            print("Collision sensitivity setting not supported on this model")
         
         # Wait for robot to be ready
         time.sleep(1)
 
+    def disconnect(self):
+        """Disconnect from the robot arm."""
+        print("Disconnecting from robot arm...")
+        self.arm.disconnect()
+        print("Disconnected successfully.")
+
     def calculate_scaling_factors(self):
         """Calculate scaling factors for the robot based on the canvas corners."""
-        z1, x1 = self.canvas_corners[0][2], self.canvas_corners[0][0]  # Top left corner
-        z2, x2 = self.canvas_corners[2][2], self.canvas_corners[2][0]  # Bottom left corner
+        z1, x1 = self.canvas_corners[0][2], self.canvas_corners[0][0]  # top-left corner
+        z2, x2 = self.canvas_corners[2][2], self.canvas_corners[2][0]  # bottom-left corner
         self.a = (x2 - x1) / (z2 - z1)
         self.b = x1 - self.a * z1
 
@@ -75,30 +84,44 @@ class SVGPainter:
         Map SVG coordinates to robot coordinates.
         
         Args:
-            svg_x (float): X-coordinate in SVG space (0-width)
-            svg_y (float): Y-coordinate in SVG space (0-height)
+            svg_x (float): X-coordinate in SVG space (0 -> width)
+            svg_y (float): Y-coordinate in SVG space (0 -> height)
             
         Returns:
             tuple: (x, y, z) coordinates in robot space
         """
-        # Map SVG coordinates to robot coordinates
-        # SVG origin is top-left, robot canvas has different orientation
-        
         # Convert SVG coordinates to normalized coordinates (0-1)
-        norm_y = min(max(svg_y / self.svg_height, 0), 1)  # Clamp to [0,1]
-        norm_x = min(max(svg_x / self.svg_width, 0), 1)   # Clamp to [0,1]
+        norm_y = min(max(svg_y / self.svg_height, 0), 1)  # clamp to [0,1]
+        norm_x = min(max(svg_x / self.svg_width, 0), 1)   # clamp to [0,1]
         
         # Map to robot coordinates
-        robot_y = self.y_min + (1 - norm_x) * (self.y_max - self.y_min)  # SVG x maps to robot y (flipped)
-        robot_z = self.z_min + norm_y * (self.z_max - self.z_min)  # SVG y maps to robot z
+        # Note the flip: SVG X -> robot Y, and SVG Y -> robot Z
+        robot_y = self.y_min + (1 - norm_x) * (self.y_max - self.y_min)
+        robot_z = self.z_min + norm_y * (self.z_max - self.z_min)
         
-        # Calculate corresponding x coordinate based on z (to maintain contact with the canvas)
+        # Calculate corresponding x coordinate based on z
         robot_x = self.x_from_z(robot_z)
         
         return (robot_x, robot_y, robot_z)
 
+    def map_robot_to_svg(self, robot_x, robot_y, robot_z):
+        """
+        Convert robot coordinates back to SVG coordinates.
+        Useful for debugging or closing paths.
+        """
+        norm_z = (robot_z - self.z_min) / (self.z_max - self.z_min)
+        norm_y = 1 - ((robot_y - self.y_min) / (self.y_max - self.y_min))
+        
+        svg_y = norm_z * self.svg_height
+        svg_x = norm_y * self.svg_width
+        
+        return (svg_x, svg_y)
+
     def approach_canvas(self, x, y, z, roll=-180, speed=20):
-        """Approach the canvas with the end effector, with safety checks."""
+        """
+        Approach the canvas with the end effector, with safety checks.
+        Moves first to x - off_canvas_distance, then onto the canvas.
+        """
         # Ensure coordinates are within safe bounds
         y = max(min(y, self.y_max), self.y_min)
         z = max(min(z, self.z_max), self.z_min)
@@ -112,37 +135,28 @@ class SVGPainter:
         result = self.arm.set_position(x=approach_x, y=y, z=z, roll=roll, pitch=-90, yaw=0, speed=speed, wait=True)
         print(f"Approach movement result: {result}")
         
-        # Then move onto canvas
+        # Then move onto the canvas
         result = self.arm.set_position(x=x, y=y, z=z, roll=roll, pitch=-90, yaw=0, speed=speed, wait=True)
         print(f"Canvas contact movement result: {result}")
         
-        # Short pause to ensure proper contact
-        time.sleep(0.2)
+        time.sleep(0.2)  # short pause
 
     def retreat_from_canvas(self, x, y, z, speed=20):
         """Retreat from the canvas after drawing, with safety checks."""
-        # Ensure coordinates are within safe bounds
         y = max(min(y, self.y_max), self.y_min)
         z = max(min(z, self.z_max), self.z_min)
-        x = self.x_from_z(z)  # Recalculate x to ensure it's on the canvas plane
+        x = self.x_from_z(z)
         
         retreat_x = x - self.off_canvas_distance
         self.arm.set_position(x=retreat_x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
         
-        # Short pause to ensure proper lift
-        time.sleep(0.2)
+        time.sleep(0.2)  # short pause
 
     def parse_path(self, path_data):
         """
-        Parse SVG path data to extract points.
-        
-        Args:
-            path_data (str): SVG path data string
-            
-        Returns:
-            list: List of commands and their parameters
+        Parse an SVG path data string to extract commands and parameters.
+        Returns a list of (command, [params]) tuples.
         """
-        # Regular expressions to match path commands and parameters
         command_pattern = r'([MLHVCSQTAZmlhvcsqtaz])[\s,]*([^MLHVCSQTAZmlhvcsqtaz]*)'
         number_pattern = r'(-?\d+\.?\d*|\.\d+)'
         
@@ -165,188 +179,157 @@ class SVGPainter:
         Args:
             path_data (str): SVG path data
             speed (int): Drawing speed
-            
-        Returns:
-            bool: True if successful, False otherwise
         """
         path_commands = self.parse_path(path_data)
         
-        current_point = None  # Current position in SVG coordinates
-        start_point = None    # Start position in robot coordinates
-        
-        # Last control point for smooth curves
-        last_control_point = None
+        current_point = None
+        start_point = None
+        last_control_point = None  # For smooth curves
         
         for cmd, params in path_commands:
             cmd_lower = cmd.lower()
+            relative = cmd.islower()  # whether it's a relative command
             
-            # Check if this is a relative or absolute command
-            relative = cmd.islower()
-            
-            if cmd_lower == 'm':  # Move
+            if cmd_lower == 'm':  # Move-to
                 if len(params) >= 2:
                     x, y = params[0], params[1]
                     if relative and current_point:
                         x += current_point[0]
                         y += current_point[1]
                     
-                    # Update the current SVG point
                     current_point = (x, y)
                     
-                    # Convert SVG coordinates to robot coordinates
                     robot_x, robot_y, robot_z = self.map_svg_to_robot(x, y)
                     
-                    # If this is the first point, we need to approach the canvas
+                    # If this is the first point of a new path
                     if start_point is None:
                         self.approach_canvas(robot_x, robot_y, robot_z, speed=speed)
                     else:
-                        # Lift pen slightly, move, and lower again
+                        # Lift pen, move, lower pen again
                         self.retreat_from_canvas(start_point[0], start_point[1], start_point[2], speed=speed)
                         self.approach_canvas(robot_x, robot_y, robot_z, speed=speed)
                     
                     start_point = (robot_x, robot_y, robot_z)
                     
-                    # Handle polyline (multiple points after M)
+                    # If M has multiple coordinate pairs, treat them like L
                     for i in range(2, len(params), 2):
-                        if i+1 < len(params):
-                            x, y = params[i], params[i+1]
+                        if i + 1 < len(params):
+                            x, y = params[i], params[i + 1]
                             if relative:
                                 x += current_point[0]
                                 y += current_point[1]
                             current_point = (x, y)
-                            robot_x, robot_y, robot_z = self.map_svg_to_robot(x, y)
-                            self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    
-            elif cmd_lower == 'l':  # Line
+                            rx, ry, rz = self.map_svg_to_robot(x, y)
+                            self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
+            elif cmd_lower == 'l':  # Line-to
                 for i in range(0, len(params), 2):
-                    if i+1 < len(params):
+                    if i + 1 < len(params):
                         x, y = params[i], params[i+1]
                         if relative and current_point:
                             x += current_point[0]
                             y += current_point[1]
-                        
                         current_point = (x, y)
-                        robot_x, robot_y, robot_z = self.map_svg_to_robot(x, y)
                         
-                        # Safety check - ensure robot stays within bounds
+                        robot_x, robot_y, robot_z = self.map_svg_to_robot(x, y)
+                        # Clamp to bounds
                         robot_y = max(min(robot_y, self.y_max), self.y_min)
                         robot_z = max(min(robot_z, self.z_max), self.z_min)
                         robot_x = self.x_from_z(robot_z)
                         
-                        self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            
+                        self.arm.set_position(
+                            x=robot_x, y=robot_y, z=robot_z, 
+                            roll=-180, pitch=-90, yaw=0,
+                            speed=speed, wait=True
+                        )
+
             elif cmd_lower == 'h':  # Horizontal line
                 for x in params:
                     if relative and current_point:
                         x += current_point[0]
-                    
                     current_point = (x, current_point[1])
-                    robot_x, robot_y, robot_z = self.map_svg_to_robot(x, current_point[1])
                     
-                    # Safety check
-                    robot_y = max(min(robot_y, self.y_max), self.y_min)
-                    robot_z = max(min(robot_z, self.z_max), self.z_min)
-                    robot_x = self.x_from_z(robot_z)
+                    rx, ry, rz = self.map_svg_to_robot(x, current_point[1])
+                    ry = max(min(ry, self.y_max), self.y_min)
+                    rz = max(min(rz, self.z_max), self.z_min)
+                    rx = self.x_from_z(rz)
                     
-                    self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            
+                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
             elif cmd_lower == 'v':  # Vertical line
                 for y in params:
                     if relative and current_point:
                         y += current_point[1]
-                    
                     current_point = (current_point[0], y)
-                    robot_x, robot_y, robot_z = self.map_svg_to_robot(current_point[0], y)
                     
-                    # Safety check
-                    robot_y = max(min(robot_y, self.y_max), self.y_min)
-                    robot_z = max(min(robot_z, self.z_max), self.z_min)
-                    robot_x = self.x_from_z(robot_z)
+                    rx, ry, rz = self.map_svg_to_robot(current_point[0], y)
+                    ry = max(min(ry, self.y_max), self.y_min)
+                    rz = max(min(rz, self.z_max), self.z_min)
+                    rx = self.x_from_z(rz)
                     
-                    self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            
+                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
             elif cmd_lower == 'q':  # Quadratic Bezier
-                if len(params) >= 4:
-                    # Get control point and end point
-                    cx, cy = params[0], params[1]
-                    x, y = params[2], params[3]
-                    
-                    if relative and current_point:
+                if len(params) >= 4 and current_point is not None:
+                    cx, cy, x, y = params[0:4]
+                    if relative:
                         cx += current_point[0]
                         cy += current_point[1]
                         x += current_point[0]
                         y += current_point[1]
                     
-                    # Store this control point for future smooth curves
                     last_control_point = (cx, cy)
-                    
-                    # Interpolate the quadratic Bezier curve
-                    steps = self.bezier_steps
                     start_x, start_y = current_point
-                    
+                    steps = self.bezier_steps
+
                     for t in np.linspace(0, 1, steps):
-                        # Quadratic Bezier formula: B(t) = (1-t)²*P0 + 2t(1-t)*P1 + t²*P2
-                        px = (1-t)**2 * start_x + 2*t*(1-t)*cx + t**2*x
-                        py = (1-t)**2 * start_y + 2*t*(1-t)*cy + t**2*y
+                        px = (1 - t)**2 * start_x + 2*t*(1 - t)*cx + t**2 * x
+                        py = (1 - t)**2 * start_y + 2*t*(1 - t)*cy + t**2 * y
                         
-                        robot_x, robot_y, robot_z = self.map_svg_to_robot(px, py)
+                        rx, ry, rz = self.map_svg_to_robot(px, py)
+                        ry = max(min(ry, self.y_max), self.y_min)
+                        rz = max(min(rz, self.z_max), self.z_min)
+                        rx = self.x_from_z(rz)
                         
-                        # Safety check
-                        robot_y = max(min(robot_y, self.y_max), self.y_min)
-                        robot_z = max(min(robot_z, self.z_max), self.z_min)
-                        robot_x = self.x_from_z(robot_z)
-                        
-                        self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    
+                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
                     current_point = (x, y)
-            
-            elif cmd_lower == 't':  # Smooth quadratic Bezier
-                if len(params) >= 2:
-                    x, y = params[0], params[1]
-                    
-                    if relative and current_point:
+
+            elif cmd_lower == 't':  # Smooth quadratic
+                if len(params) >= 2 and current_point is not None:
+                    x, y = params[0:2]
+                    if relative:
                         x += current_point[0]
                         y += current_point[1]
                     
-                    # Calculate the reflection of the last control point
-                    if last_control_point and current_point:
+                    # Reflect last control point if we have one
+                    if last_control_point:
                         cx = 2 * current_point[0] - last_control_point[0]
                         cy = 2 * current_point[1] - last_control_point[1]
                     else:
-                        # If no previous control point, use current point (collinear)
                         cx, cy = current_point
                     
-                    # Store this control point for future smooth curves
                     last_control_point = (cx, cy)
-                    
-                    # Interpolate the quadratic Bezier curve
-                    steps = self.bezier_steps
                     start_x, start_y = current_point
-                    
+                    steps = self.bezier_steps
+
                     for t in np.linspace(0, 1, steps):
-                        # Quadratic Bezier formula: B(t) = (1-t)²*P0 + 2t(1-t)*P1 + t²*P2
-                        px = (1-t)**2 * start_x + 2*t*(1-t)*cx + t**2*x
-                        py = (1-t)**2 * start_y + 2*t*(1-t)*cy + t**2*y
+                        px = (1 - t)**2 * start_x + 2*t*(1 - t)*cx + t**2 * x
+                        py = (1 - t)**2 * start_y + 2*t*(1 - t)*cy + t**2 * y
                         
-                        robot_x, robot_y, robot_z = self.map_svg_to_robot(px, py)
+                        rx, ry, rz = self.map_svg_to_robot(px, py)
+                        ry = max(min(ry, self.y_max), self.y_min)
+                        rz = max(min(rz, self.z_max), self.z_min)
+                        rx = self.x_from_z(rz)
                         
-                        # Safety check
-                        robot_y = max(min(robot_y, self.y_max), self.y_min)
-                        robot_z = max(min(robot_z, self.z_max), self.z_min)
-                        robot_x = self.x_from_z(robot_z)
-                        
-                        self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    
+                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
                     current_point = (x, y)
-            
+
             elif cmd_lower == 'c':  # Cubic Bezier
-                if len(params) >= 6:
-                    # Get control points and end point
-                    c1x, c1y = params[0], params[1]
-                    c2x, c2y = params[2], params[3]
-                    x, y = params[4], params[5]
-                    
-                    if relative and current_point:
+                if len(params) >= 6 and current_point is not None:
+                    c1x, c1y, c2x, c2y, x, y = params[0:6]
+                    if relative:
                         c1x += current_point[0]
                         c1y += current_point[1]
                         c2x += current_point[0]
@@ -354,111 +337,514 @@ class SVGPainter:
                         x += current_point[0]
                         y += current_point[1]
                     
-                    # Store the second control point for future smooth curves
                     last_control_point = (c2x, c2y)
-                    
-                    # Interpolate the cubic Bezier curve
-                    steps = self.bezier_steps
                     start_x, start_y = current_point
-                    
+                    steps = self.bezier_steps
+
                     for t in np.linspace(0, 1, steps):
-                        # Cubic Bezier formula: B(t) = (1-t)³*P0 + 3t(1-t)²*P1 + 3t²(1-t)*P2 + t³*P3
-                        px = (1-t)**3 * start_x + 3*t*(1-t)**2 * c1x + 3*t**2*(1-t) * c2x + t**3 * x
-                        py = (1-t)**3 * start_y + 3*t*(1-t)**2 * c1y + 3*t**2*(1-t) * c2y + t**3 * y
+                        px = (1 - t)**3 * start_x \
+                             + 3*t*(1 - t)**2 * c1x \
+                             + 3*t**2*(1 - t) * c2x \
+                             + t**3 * x
+                        py = (1 - t)**3 * start_y \
+                             + 3*t*(1 - t)**2 * c1y \
+                             + 3*t**2*(1 - t) * c2y \
+                             + t**3 * y
                         
-                        robot_x, robot_y, robot_z = self.map_svg_to_robot(px, py)
+                        rx, ry, rz = self.map_svg_to_robot(px, py)
+                        ry = max(min(ry, self.y_max), self.y_min)
+                        rz = max(min(rz, self.z_max), self.z_min)
+                        rx = self.x_from_z(rz)
                         
-                        # Safety check
-                        robot_y = max(min(robot_y, self.y_max), self.y_min)
-                        robot_z = max(min(robot_z, self.z_max), self.z_min)
-                        robot_x = self.x_from_z(robot_z)
-                        
-                        self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    
+                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
                     current_point = (x, y)
-            
-            elif cmd_lower == 's':  # Smooth cubic Bezier
-                if len(params) >= 4:
-                    # Get control points and end point
-                    c2x, c2y = params[0], params[1]
-                    x, y = params[2], params[3]
-                    
-                    if relative and current_point:
+
+            elif cmd_lower == 's':  # Smooth cubic
+                if len(params) >= 4 and current_point is not None:
+                    c2x, c2y, x, y = params[0:4]
+                    if relative:
                         c2x += current_point[0]
                         c2y += current_point[1]
                         x += current_point[0]
                         y += current_point[1]
                     
-                    # Calculate the reflection of the last control point
-                    if last_control_point and current_point:
+                    if last_control_point:
                         c1x = 2 * current_point[0] - last_control_point[0]
                         c1y = 2 * current_point[1] - last_control_point[1]
                     else:
-                        # If no previous control point, use current point (collinear)
                         c1x, c1y = current_point
                     
-                    # Store this control point for future smooth curves
                     last_control_point = (c2x, c2y)
-                    
-                    # Interpolate the cubic Bezier curve
-                    steps = self.bezier_steps
                     start_x, start_y = current_point
-                    
+                    steps = self.bezier_steps
+
                     for t in np.linspace(0, 1, steps):
-                        # Cubic Bezier formula: B(t) = (1-t)³*P0 + 3t(1-t)²*P1 + 3t²(1-t)*P2 + t³*P3
-                        px = (1-t)**3 * start_x + 3*t*(1-t)**2 * c1x + 3*t**2*(1-t) * c2x + t**3 * x
-                        py = (1-t)**3 * start_y + 3*t*(1-t)**2 * c1y + 3*t**2*(1-t) * c2y + t**3 * y
+                        px = (1 - t)**3 * start_x \
+                             + 3*t*(1 - t)**2 * c1x \
+                             + 3*t**2*(1 - t) * c2x \
+                             + t**3 * x
+                        py = (1 - t)**3 * start_y \
+                             + 3*t*(1 - t)**2 * c1y \
+                             + 3*t**2*(1 - t) * c2y \
+                             + t**3 * y
                         
-                        robot_x, robot_y, robot_z = self.map_svg_to_robot(px, py)
+                        rx, ry, rz = self.map_svg_to_robot(px, py)
+                        ry = max(min(ry, self.y_max), self.y_min)
+                        rz = max(min(rz, self.z_max), self.z_min)
+                        rx = self.x_from_z(rz)
                         
-                        # Safety check
-                        robot_y = max(min(robot_y, self.y_max), self.y_min)
-                        robot_z = max(min(robot_z, self.z_max), self.z_min)
-                        robot_x = self.x_from_z(robot_z)
-                        
-                        self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    
+                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
                     current_point = (x, y)
-            
-            elif cmd_lower == 'a':  # Elliptical arc
-                # Skip for now but print a warning
-                print(f"Warning: Arc commands (A/a) are not fully implemented")
-                # Approximate as a line to the end point if possible
-                if len(params) >= 7:
+
+            elif cmd_lower == 'a':  # Arc
+                # Not fully implemented
+                print(f"Warning: Arc commands (A/a) are not fully implemented; approximating endpoint.")
+                if len(params) >= 7 and current_point is not None:
                     x, y = params[5], params[6]
-                    if relative and current_point:
+                    if relative:
                         x += current_point[0]
                         y += current_point[1]
                     current_point = (x, y)
-                    robot_x, robot_y, robot_z = self.map_svg_to_robot(x, y)
-                    self.arm.set_position(x=robot_x, y=robot_y, z=robot_z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            
+                    
+                    rx, ry, rz = self.map_svg_to_robot(x, y)
+                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
             elif cmd_lower == 'z':  # Close path
-                if start_point and current_point != (start_point[0], start_point[1]):
-                    x, y = self.map_robot_to_svg(start_point[0], start_point[1], start_point[2])
-                    current_point = (x, y)
-                    self.arm.set_position(x=start_point[0], y=start_point[1], z=start_point[2], 
-                                         roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-        
-        # Always retreat from the canvas after drawing a path
+                if start_point and current_point:
+                    # Move back to the start point in robot coords
+                    self.arm.set_position(
+                        x=start_point[0], y=start_point[1], z=start_point[2],
+                        roll=-180, pitch=-90, yaw=0, speed=speed, wait=True
+                    )
+
+        # After the path is finished, lift the pen
         if start_point:
             self.retreat_from_canvas(start_point[0], start_point[1], start_point[2], speed=speed)
         
         return True
 
-    def map_robot_to_svg(self, robot_x, robot_y, robot_z):
+    def rect_to_path(self, rect):
+        """Convert a rectangle element to path data."""
+        try:
+            x = float(rect.attrib.get('x', 0))
+            y = float(rect.attrib.get('y', 0))
+            width = float(rect.attrib.get('width', 0))
+            height = float(rect.attrib.get('height', 0))
+            return f"M{x},{y} h{width} v{height} h{-width} Z"
+        except (ValueError, TypeError) as e:
+            print(f"Error converting rectangle to path: {e}")
+            return None
+
+    def circle_to_path(self, circle):
+        """Convert a circle element to path data (approx. 4 Bezier arcs)."""
+        try:
+            cx = float(circle.attrib.get('cx', 0))
+            cy = float(circle.attrib.get('cy', 0))
+            r = float(circle.attrib.get('r', 0))
+            control = r * 0.5522848  # approximation
+            
+            path_data = (
+                f"M{cx},{cy-r} "
+                f"C{cx+control},{cy-r} {cx+r},{cy-control} {cx+r},{cy} "
+                f"C{cx+r},{cy+control} {cx+control},{cy+r} {cx},{cy+r} "
+                f"C{cx-control},{cy+r} {cx-r},{cy+control} {cx-r},{cy} "
+                f"C{cx-r},{cy-control} {cx-control},{cy-r} {cx},{cy-r} "
+                f"Z"
+            )
+            return path_data
+        except (ValueError, TypeError) as e:
+            print(f"Error converting circle to path: {e}")
+            return None
+
+    def ellipse_to_path(self, ellipse):
+        """Convert an ellipse element to path data (approx. 4 Bezier arcs)."""
+        try:
+            cx = float(ellipse.attrib.get('cx', 0))
+            cy = float(ellipse.attrib.get('cy', 0))
+            rx = float(ellipse.attrib.get('rx', 0))
+            ry = float(ellipse.attrib.get('ry', 0))
+            
+            control_x = rx * 0.5522848
+            control_y = ry * 0.5522848
+            
+            path_data = (
+                f"M{cx},{cy-ry} "
+                f"C{cx+control_x},{cy-ry} {cx+rx},{cy-control_y} {cx+rx},{cy} "
+                f"C{cx+rx},{cy+control_y} {cx+control_x},{cy+ry} {cx},{cy+ry} "
+                f"C{cx-control_x},{cy+ry} {cx-rx},{cy+control_y} {cx-rx},{cy} "
+                f"C{cx-rx},{cy-control_y} {cx-control_x},{cy-ry} {cx},{cy-ry} "
+                f"Z"
+            )
+            return path_data
+        except (ValueError, TypeError) as e:
+            print(f"Error converting ellipse to path: {e}")
+            return None
+
+    def line_to_path(self, line):
+        """Convert a line element to path data."""
+        try:
+            x1 = float(line.attrib.get('x1', 0))
+            y1 = float(line.attrib.get('y1', 0))
+            x2 = float(line.attrib.get('x2', 0))
+            y2 = float(line.attrib.get('y2', 0))
+            return f"M{x1},{y1} L{x2},{y2}"
+        except (ValueError, TypeError) as e:
+            print(f"Error converting line to path: {e}")
+            return None
+
+    def polyline_to_path(self, polyline):
+        """Convert a polyline element to path data."""
+        try:
+            points = polyline.attrib.get('points', '')
+            if not points:
+                return None
+            pairs = re.findall(r'(-?\d+\.?\d*)[,\s](-?\d+\.?\d*)', points)
+            if not pairs:
+                return None
+            path_data = f"M{pairs[0][0]},{pairs[0][1]}"
+            for x, y in pairs[1:]:
+                path_data += f" L{x},{y}"
+            return path_data
+        except (ValueError, TypeError) as e:
+            print(f"Error converting polyline to path: {e}")
+            return None
+
+    def polygon_to_path(self, polygon):
+        """Convert a polygon element to a closed path."""
+        try:
+            path_data = self.polyline_to_path(polygon)
+            if path_data:
+                path_data += " Z"
+            return path_data
+        except (ValueError, TypeError) as e:
+            print(f"Error converting polygon to path: {e}")
+            return None
+
+    def parse_svg_file(self, svg_file_path):
         """
-        Convert robot coordinates back to SVG coordinates.
-        Useful for debugging and path closing.
+        Parse an SVG file and extract all drawable elements (paths, rects, circles, etc.),
+        converting them to path data.
         """
-        # Normalize Z
-        norm_z = (robot_z - self.z_min) / (self.z_max - self.z_min)
+        try:
+            tree = ET.parse(svg_file_path)
+            root = tree.getroot()
+            
+            # Get SVG dimensions if specified
+            width = root.attrib.get('width')
+            height = root.attrib.get('height')
+            
+            if width:
+                self.svg_width = float(width.replace('px', ''))
+            if height:
+                self.svg_height = float(height.replace('px', ''))
+            
+            print(f"SVG dimensions: {self.svg_width} x {self.svg_height}")
+            
+            paths = []
+            namespaces = {'svg': 'http://www.w3.org/2000/svg'}
+            
+            def find_elements(el, tag):
+                # Attempt with namespace first
+                found = el.findall(f'.//svg:{tag}', namespaces)
+                if not found:
+                    # Fallback to no namespace
+                    found = el.findall(f'.//{tag}')
+                return found
+            
+            # Grab existing <path> elements
+            for p in find_elements(root, 'path'):
+                d = p.attrib.get('d')
+                if d:
+                    paths.append(d)
+            
+            # Rects
+            for rect in find_elements(root, 'rect'):
+                rect_path = self.rect_to_path(rect)
+                if rect_path:
+                    paths.append(rect_path)
+            
+            # Circles
+            for circle in find_elements(root, 'circle'):
+                circle_path = self.circle_to_path(circle)
+                if circle_path:
+                    paths.append(circle_path)
+            
+            # Ellipses
+            for ellipse in find_elements(root, 'ellipse'):
+                ellipse_path = self.ellipse_to_path(ellipse)
+                if ellipse_path:
+                    paths.append(ellipse_path)
+            
+            # Lines
+            for line in find_elements(root, 'line'):
+                line_path = self.line_to_path(line)
+                if line_path:
+                    paths.append(line_path)
+            
+            # Polylines
+            for polyline in find_elements(root, 'polyline'):
+                polyline_path = self.polyline_to_path(polyline)
+                if polyline_path:
+                    paths.append(polyline_path)
+            
+            # Polygons
+            for polygon in find_elements(root, 'polygon'):
+                polygon_path = self.polygon_to_path(polygon)
+                if polygon_path:
+                    paths.append(polygon_path)
+            
+            print(f"Found {len(paths)} drawable elements in SVG.")
+            return paths
         
-        # Normalize Y (with flipping)
-        norm_y = 1 - ((robot_y - self.y_min) / (self.y_max - self.y_min))
+        except Exception as e:
+            print(f"Error parsing SVG file: {e}")
+            return []
+
+    def paint_svg_from_string(self, svg_string, speed=20):
+        """
+        Paint an SVG from a string content.
         
-        # Convert back to SVG coordinates
-        svg_y = norm_z * self.svg_height
-        svg_x = norm_y * self.svg_width
+        Args:
+            svg_string (str): SVG content as a string
+            speed (int): Drawing speed
+        """
+        try:
+            print("Starting to paint SVG from string")
+            
+            # Parse SVG string
+            root = ET.fromstring(svg_string)
+            
+            # Get SVG dimensions
+            width = root.attrib.get('width')
+            height = root.attrib.get('height')
+            
+            if width:
+                self.svg_width = float(width.replace('px', ''))
+            if height:
+                self.svg_height = float(height.replace('px', ''))
+            
+            print(f"SVG dimensions: {self.svg_width} x {self.svg_height}")
+            
+            # Try both with and without namespace
+            namespaces = {'svg': 'http://www.w3.org/2000/svg'}
+            
+            def find_elements(el, tag):
+                elems = el.findall(f'.//svg:{tag}', namespaces)
+                if not elems:
+                    elems = el.findall(f'.//{tag}')
+                return elems
+            
+            paths = []
+            
+            # <path>
+            for path_el in find_elements(root, 'path'):
+                d = path_el.attrib.get('d')
+                if d:
+                    paths.append(d)
+            
+            # <rect>
+            for rect in find_elements(root, 'rect'):
+                rect_path = self.rect_to_path(rect)
+                if rect_path:
+                    paths.append(rect_path)
+            
+            # <circle>
+            for circle in find_elements(root, 'circle'):
+                circle_path = self.circle_to_path(circle)
+                if circle_path:
+                    paths.append(circle_path)
+            
+            # <ellipse>
+            for ellipse in find_elements(root, 'ellipse'):
+                ellipse_path = self.ellipse_to_path(ellipse)
+                if ellipse_path:
+                    paths.append(ellipse_path)
+            
+            # <line>
+            for line in find_elements(root, 'line'):
+                line_path = self.line_to_path(line)
+                if line_path:
+                    paths.append(line_path)
+            
+            # <polyline>
+            for polyline in find_elements(root, 'polyline'):
+                polyline_path = self.polyline_to_path(polyline)
+                if polyline_path:
+                    paths.append(polyline_path)
+            
+            # <polygon>
+            for polygon in find_elements(root, 'polygon'):
+                polygon_path = self.polygon_to_path(polygon)
+                if polygon_path:
+                    paths.append(polygon_path)
+            
+            if not paths:
+                print("No drawable elements found in SVG string.")
+                return False
+            
+            print(f"Found {len(paths)} drawable elements in the SVG string.")
+            
+            # Move to a safe position first
+            safe_z = (self.z_min + self.z_max) / 2
+            safe_y = (self.y_min + self.y_max) / 2
+            safe_x = self.x_from_z(safe_z) - self.off_canvas_distance
+            print(f"Moving to initial safety position: ({safe_x:.2f}, {safe_y:.2f}, {safe_z:.2f})")
+            
+            result = self.arm.set_position(
+                x=safe_x, y=safe_y, z=safe_z, 
+                roll=-180, pitch=-90, yaw=0, 
+                speed=speed, wait=True
+            )
+            if result != 0:
+                print(f"Warning: Initial safety move resulted in code {result}")
+            
+            # Draw each path
+            for i, path_data in enumerate(paths):
+                print(f"Drawing path {i+1}/{len(paths)}")
+                success = self.draw_svg_path(path_data, speed)
+                if not success:
+                    print(f"Warning: Problem drawing path {i+1}")
+                time.sleep(0.5)
+            
+            # Return to safe position
+            print("Finished painting, returning to safe position.")
+            self.arm.set_position(
+                x=safe_x, y=safe_y, z=safe_z,
+                roll=-180, pitch=-90, yaw=0,
+                speed=speed, wait=True
+            )
+            
+            return True
+
+        except Exception as e:
+            print(f"Error during painting from string: {e}")
+            # Attempt to recover
+            try:
+                print("Attempting to move to a safe position...")
+                self.arm.set_position(x=400, y=0, z=400, roll=-180, pitch=-90, yaw=0, speed=20, wait=True)
+            except:
+                pass
+            # Emergency stop if recovery failed
+            print("Executing emergency stop")
+            self.arm.emergency_stop()
+            return False
+
+    def paint_svg(self, svg_file_path, speed=20):
+        """
+        Paint an SVG file on the canvas.
         
-        return (svg_x, svg_y)
+        Args:
+            svg_file_path (str): Path to the SVG file
+            speed (int): Drawing speed
+        """
+        try:
+            print(f"Starting to paint SVG file: {svg_file_path}")
+            state = self.arm.get_state()
+            print(f"Robot state: {state}")
+            if state[0] != 0:
+                print("Warning: Robot is not in a ready state, attempting to reset.")
+                self.arm.set_state(state=0)
+                time.sleep(1)
+            
+            paths = self.parse_svg_file(svg_file_path)
+            if not paths:
+                print("No drawable elements found in SVG file.")
+                return False
+            
+            # Move to a safe position
+            safe_z = (self.z_min + self.z_max) / 2
+            safe_y = (self.y_min + self.y_max) / 2
+            safe_x = self.x_from_z(safe_z) - self.off_canvas_distance
+            
+            print(f"Moving to initial safety position: ({safe_x:.2f}, {safe_y:.2f}, {safe_z:.2f})")
+            result = self.arm.set_position(
+                x=safe_x, y=safe_y, z=safe_z,
+                roll=-180, pitch=-90, yaw=0,
+                speed=speed, wait=True
+            )
+            if result != 0:
+                print(f"Warning: Initial safety move resulted in code {result}")
+            
+            # Draw each path
+            for i, path_data in enumerate(paths):
+                print(f"Drawing path {i+1}/{len(paths)}")
+                success = self.draw_svg_path(path_data, speed)
+                if not success:
+                    print(f"Warning: Problem drawing path {i+1}")
+                time.sleep(0.5)
+            
+            # Return to safe position
+            print("Finished painting, returning to safe position.")
+            self.arm.set_position(
+                x=safe_x, y=safe_y, z=safe_z,
+                roll=-180, pitch=-90, yaw=0,
+                speed=speed, wait=True
+            )
+            
+            return True
+
+        except Exception as e:
+            print(f"Error during painting: {e}")
+            # Attempt to recover
+            try:
+                print("Attempting to move to a safe position...")
+                self.arm.set_position(x=400, y=0, z=400, roll=-180, pitch=-90, yaw=0, speed=20, wait=True)
+            except:
+                pass
+            # Emergency stop if needed
+            print("Executing emergency stop")
+            self.arm.emergency_stop()
+            return False
+
+
+if __name__ == "__main__":
+    svg_file = "simple.svg"  # Default SVG file
+    ip_address = "192.168.0.203"  # Default IP address
+    speed = 15  # Default speed
+    
+    if len(sys.argv) > 1:
+        svg_file = sys.argv[1]
+    if len(sys.argv) > 2:
+        ip_address = sys.argv[2]
+    if len(sys.argv) > 3:
+        try:
+            speed = int(sys.argv[3])
+        except ValueError:
+            print(f"Invalid speed value, using default: {speed}")
+    
+    # Check if SVG file exists
+    if not os.path.exists(svg_file):
+        print(f"Error: SVG file '{svg_file}' not found.")
+        sys.exit(1)
+    
+    print(f"Connecting to xArm at {ip_address}...")
+    painter = SVGPainter(ip_address)
+    
+    try:
+        print("Testing robot connection and movement...")
+        # Move to a safe test position
+        result = painter.arm.set_position(
+            x=400, y=0, z=400, roll=-180, pitch=-90, yaw=0,
+            speed=20, wait=True
+        )
+        print(f"Initial movement test result: {result}")
+        time.sleep(1)
+        
+        # Start painting
+        print(f"\n=== Starting to paint {svg_file} ===")
+        print(f"Using drawing speed: {speed}")
+        success = painter.paint_svg(svg_file, speed=speed)
+        
+        if success:
+            print("\n=== Painting completed successfully ===")
+        else:
+            print("\n=== Painting encountered issues ===")
+            
+    except KeyboardInterrupt:
+        print("\nOperation interrupted by user.")
+    except Exception as e:
+        print(f"Error during execution: {e}")
+    finally:
+        painter.disconnect()
