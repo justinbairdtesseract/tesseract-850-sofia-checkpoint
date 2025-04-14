@@ -20,6 +20,7 @@ MAXMSP_TO_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
 MOVE_BETWEEN_SPEED = 400
+STROKE_SPEED = 50
 
 face_detection_thread = vision.start_face_mesh('webcam', True)
 # face_detection_thread = vision.start_face_mesh('filepath', True) # if you want to load from file
@@ -64,6 +65,8 @@ class XArmController:
         self.svg_height = 600
         self.safety_margin = 10  # to keep from going out of bounds
         self.bezier_steps = 15   # for smooth curves
+        
+        
 
     def setup(self):
         self.arm.motion_enable(enable=True)
@@ -471,14 +474,14 @@ class XArmController:
                                           speed=speed, wait=True)
 
 
-            elif lower == 'z':  # close path
-                # If you want to close by returning to the first "M" point:
-                if start_point_robot:
-                    self.arm.set_position(x=start_point_robot[0],
-                                          y=start_point_robot[1],
-                                          z=start_point_robot[2],
-                                          roll=-180, pitch=-90, yaw=0,
-                                          speed=speed, wait=True)
+            # elif lower == 'z':  # close path
+            #     # If you want to close by returning to the first "M" point:
+            #     if start_point_robot:
+            #         self.arm.set_position(x=start_point_robot[0],
+            #                               y=start_point_robot[1],
+            #                               z=start_point_robot[2],
+            #                               roll=-180, pitch=-90, yaw=0,
+            #                               speed=speed, wait=True)
 
         # End of this path => pen up
         if start_point_robot and first_move_done:
@@ -499,13 +502,13 @@ class XArmController:
         nx = svg_x / self.svg_width   # 0..1 (left to right)
         ny = svg_y / self.svg_height  # 0..1 (top to bottom)
 
-        # FLIP the vertical axis for z:
-        # so ny=0 => z=z_max, ny=1 => z=z_min
-        robot_z = self.z_max - ny * (self.z_max - self.z_min)
+        # # FLIP the vertical axis for z:
+        # robot_z = self.z_max - ny * (self.z_max - self.z_min)
+        # robot_y = self.y_min + nx * (self.y_max - self.y_min)
 
-        # Map svg_x => robot Y (left to right):
-        # if nx=0 => y=y_min, nx=1 => y=y_max
-        robot_y = self.y_min + nx * (self.y_max - self.y_min)
+        # flipped
+        robot_z = self.z_min + ny * (self.z_max - self.z_min)
+        robot_y = self.y_max - nx * (self.y_max - self.y_min)
 
         # Finally, compute x from z
         robot_x = self.x_from_z(robot_z)
@@ -513,7 +516,7 @@ class XArmController:
     # --------------
     # TOP-LEVEL DRAW
     # --------------
-    def draw_next_stroke(self, speed=20):
+    def draw_next_stroke(self, speed=STROKE_SPEED):
         """
         Draw exactly one path from self.svg_strokes[self.stroke_index],
         then increment stroke_index.
