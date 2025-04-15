@@ -409,7 +409,6 @@ class XArmController:
             is_rel = (cmd == lower)  # whether it's relative
 
             if lower == 'm':  # Move-to
-                # there could be multiple pairs: M x,y x2,y2 ...
                 for i in range(0, len(nums), 2):
                     x_svg = nums[i]
                     y_svg = nums[i+1]
@@ -418,22 +417,19 @@ class XArmController:
                         y_svg += current_point[1]
                     current_point = (x_svg, y_svg)
 
-                    # Map to robot
                     rx, ry, rz = self.map_svg_to_robot(x_svg, y_svg)
                     rx, ry, rz = clamp_robot(ry, rz)
 
                     if not first_move_done:
-                        # Approach
+                        # Approach for the very first move
                         self.approach_canvas(rx, ry, rz, speed=speed)
                         start_point_robot = (rx, ry, rz)
                         first_move_done = True
                     else:
-                        # If a second Move in the same path, it’s effectively a pen-up -> pen-down:
-                        self.retreat_from_canvas(start_point_robot[0],
-                                                 start_point_robot[1],
-                                                 start_point_robot[2],
-                                                 speed=speed)
-                        self.approach_canvas(rx, ry, rz, speed=speed)
+                        # Instead of lifting the pen, continue drawing:
+                        self.arm.set_position(x=rx, y=ry, z=rz,
+                                            roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
 
             elif lower == 'l':  # Line-to
                 for i in range(0, len(nums), 2):
