@@ -485,20 +485,20 @@ class XArmController:
                     last_point_robot = (rx, ry, rz)
 
             # --------------- ‘Z’ — close path ----------------------
-            # elif lower == 'z' and start_point_robot:
-            #     # lift a little, travel back to the start (in the air), drop, draw
-            #     lift = 5
-            #     self.arm.set_position(z=last_point_robot[2] + lift,
-            #                         roll=-180, pitch=-90, yaw=0,
-            #                         speed=speed, wait=True)
-            #     self.arm.set_position(x=start_point_robot[0], y=start_point_robot[1],
-            #                         z=last_point_robot[2] + lift,
-            #                         roll=-180, pitch=-90, yaw=0,
-            #                         speed=speed, wait=True)
-            #     self.arm.set_position(z=start_point_robot[2],
-            #                         roll=-180, pitch=-90, yaw=0,
-            #                         speed=speed, wait=True)
-            #     last_point_robot = start_point_robot
+            elif lower == 'z' and start_point_robot:
+                # lift a little, travel back to the start (in the air), drop, draw
+                lift = 5
+                self.arm.set_position(z=last_point_robot[2] + lift,
+                                    roll=-180, pitch=-90, yaw=0,
+                                    speed=speed, wait=True)
+                self.arm.set_position(x=start_point_robot[0], y=start_point_robot[1],
+                                    z=last_point_robot[2] + lift,
+                                    roll=-180, pitch=-90, yaw=0,
+                                    speed=speed, wait=True)
+                self.arm.set_position(z=start_point_robot[2],
+                                    roll=-180, pitch=-90, yaw=0,
+                                    speed=speed, wait=True)
+                last_point_robot = start_point_robot
 
             # --------------- (any other command types ignored) ----
 
