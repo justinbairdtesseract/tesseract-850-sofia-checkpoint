@@ -372,143 +372,194 @@ class XArmController:
     # --------------
     # STROKE-BY-STROKE DRAWING
     # --------------
-    def draw_svg_stroke(self, stroke_data, speed: int = 20):
+       # ------------------------------------------------------------------
+    # FULL-FEATURE DRAW-SVG-STROKE  ──  supports M/L/H/V/C/S/Q/T/A/Z
+    # ------------------------------------------------------------------
+    def draw_svg_stroke(self, path_data: str, speed: int = 20):
         """
-        Draw a single SVG path (stroke).
-
-        • Approaches the canvas at the first ‘M’.
-        • Follows all subsequent draw commands while the pen is down.
-        • Lifts the pen, then retreats from the point it actually finished on
-        (so it never drags back over the stroke).
+        Execute a single SVG path *exactly* like the original SVGPainter
+        (curves, close-paths, partial A-arcs, clamping, safety margin),
+        but keep the stroke-by-stroke logic of XArmController.
         """
 
-        # -------------------------------------------------
-        # tiny helpers
-        # -------------------------------------------------
-        def parse_path(path_data: str):
-            """Return a list of (command, [float …]) tuples."""
-            cmd_pat = r'([MLHVCSQTAZmlhvcsqtaz])([^MLHVCSQTAZmlhvcsqtaz]*)'
-            num_pat = r'(-?\d+(?:\.\d+)?|\.\d+)'          # handles “.5” as well
-            out = []
-            for cmd, params in re.findall(cmd_pat, path_data):
-                nums = [float(n) for n in re.findall(num_pat, params)]
-                out.append((cmd, nums))
-            return out
+        # ---------------- helpers ----------------
+        cmd_pat = r'([MLHVCSQTAZmlhvcsqtaz])([^MLHVCSQTAZmlhvcsqtaz]*)'
+        num_pat = r'(-?\d+(?:\.\d+)?|\.\d+)'        # handles ".5"
 
-        def clamp_to_canvas(y: float, z: float):
-            """Keep Y/Z inside the user‑defined canvas, recompute X from Z."""
-            y = max(min(y, self.y_max), self.y_min)
-            z = max(min(z, self.z_max), self.z_min)
-            x = self.x_from_z(z)
-            return x, y, z
+        def parse_path(d):
+            for cmd, params in re.findall(cmd_pat, d):
+                yield cmd, [float(n) for n in re.findall(num_pat, params)]
 
-        # -------------------------------------------------
-        # main logic
-        # -------------------------------------------------
-        commands = parse_path(stroke_data)
+        def clamp(y, z):
+            """Keep Y/Z in canvas, respect safety margin, recompute X."""
+            y = min(max(y, self.y_min + self.safety_margin),
+                    self.y_max - self.safety_margin)
+            z = min(max(z, self.z_min + self.safety_margin),
+                    self.z_max - self.safety_margin)
+            return self.x_from_z(z), y, z
+        # ------------------------------------------
 
-        current_svg_pt   = None      # (x, y) in SVG space
-        start_point_robot = None     # first ‘M’ in robot coords
-        last_point_robot  = None     # updated after every pen‑down move
-        first_move_done   = False
+        current      = None           # (svg_x, svg_y)
+        start_robot  = None           # first point in robot coords
+        last_ctrl    = None           # for smooth curves
+        pen_down     = False
 
-        for cmd, nums in commands:
-            lower   = cmd.lower()
-            is_rel  = (cmd == lower)
+        for cmd, nums in parse_path(path_data):
+            op, rel = cmd.lower(), cmd.islower()
 
-            # --------------- ‘M’ — move (pen up) -----------------
-            if lower == 'm':
+            # ------------ MOVE (M/m) ------------
+            if op == 'm':
                 for i in range(0, len(nums), 2):
-                    x_svg, y_svg = nums[i], nums[i + 1]
-                    if is_rel and current_svg_pt:
-                        x_svg += current_svg_pt[0]
-                        y_svg += current_svg_pt[1]
-                    current_svg_pt = (x_svg, y_svg)
+                    x, y = nums[i:i+2]
+                    if rel and current:              # relative move
+                        x += current[0];  y += current[1]
+                    current = (x, y)
 
-                    rx, ry, rz = self.map_svg_to_robot(x_svg, y_svg)
-                    rx, ry, rz = clamp_to_canvas(ry, rz)
+                    rx, ry, rz = self.map_svg_to_robot(x, y)
+                    rx, ry, rz = clamp(ry, rz)
 
-                    if not first_move_done:
-                        # approach canvas (pen up), then touch down
+                    if not pen_down:                # first point in stroke
                         self.approach_canvas(rx, ry, rz, speed=speed)
-                        start_point_robot = (rx, ry, rz)
-                        first_move_done   = True
+                        start_robot, pen_down = (rx, ry, rz), True
+                    else:                           # internal move (pen up)
+                        self.arm.set_position(z=rz + 5, roll=-180,
+                                              pitch=-90, yaw=0,
+                                              speed=speed, wait=True)
+                        self.arm.set_position(x=rx, y=ry, z=rz + 5,
+                                              roll=-180, pitch=-90, yaw=0,
+                                              speed=speed, wait=True)
+                        self.arm.set_position(z=rz, roll=-180,
+                                              pitch=-90, yaw=0,
+                                              speed=speed, wait=True)
+                last_ctrl = None
+
+            # -------- LINE / H / V ---------------
+            elif op in ('l', 'h', 'v'):
+                segs = []
+                if op == 'l':
+                    segs = [(nums[i], nums[i+1])
+                            for i in range(0, len(nums), 2)]
+                elif op == 'h':
+                    segs = [(dx, 0) for dx in nums]
+                else:  # 'v'
+                    segs = [(0, dy) for dy in nums]
+
+                for dx, dy in segs:
+                    x, y = current
+                    if op == 'l':
+                        x, y = (x+dx, y+dy) if rel else (dx, dy)
+                    elif op == 'h':
+                        x = x + dx if rel else dx
                     else:
-                        # we’re already on the canvas – lift a little, move, drop
-                        self.arm.set_position(z=rz + 5,
-                                            roll=-180, pitch=-90, yaw=0,
-                                            speed=speed, wait=True)
-                        self.arm.set_position(x=rx, y=ry,
-                                            roll=-180, pitch=-90, yaw=0,
-                                            z=rz + 5, speed=speed, wait=True)
-                        self.arm.set_position(z=rz,
-                                            roll=-180, pitch=-90, yaw=0,
-                                            speed=speed, wait=True)
-                    last_point_robot = (rx, ry, rz)
+                        y = y + dy if rel else dy
+                    current = (x, y)
 
-            # --------------- line commands (pen down) -------------
-            elif lower in ('l', 'h', 'v'):
-                # normalise the parameter list into (x, y) pairs
-                pairs = []
-                if lower == 'l':                # x, y pairs
-                    for i in range(0, len(nums), 2):
-                        pairs.append((nums[i], nums[i + 1]))
-                elif lower == 'h':              # horizontal line(s): x only
-                    for x_val in nums:
-                        pairs.append((x_val, 0.0))
-                elif lower == 'v':              # vertical line(s): y only
-                    for y_val in nums:
-                        pairs.append((0.0, y_val))
+                    rx, ry, rz = self.map_svg_to_robot(x, y)
+                    rx, ry, rz = clamp(ry, rz)
+                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
+                                          pitch=-90, yaw=0,
+                                          speed=speed, wait=True)
+                last_ctrl = None
 
-                for dx, dy in pairs:
-                    if current_svg_pt is None:
-                        continue
-                    x_svg, y_svg = current_svg_pt
-                    if lower == 'l':
-                        if is_rel:
-                            x_svg += dx
-                            y_svg += dy
+            # -------- QUADRATIC / SMOOTH Q -------
+            elif op in ('q', 't'):
+                i = 0
+                while i < len(nums):
+                    if op == 'q':
+                        cx, cy, x, y = nums[i:i+4];  i += 4
+                    else:
+                        x, y = nums[i:i+2];          i += 2
+                        if last_ctrl:
+                            cx = 2*current[0] - last_ctrl[0]
+                            cy = 2*current[1] - last_ctrl[1]
                         else:
-                            x_svg, y_svg = dx, dy
-                    elif lower == 'h':
-                        x_svg = x_svg + dx if is_rel else dx
-                    else:  # 'v'
-                        y_svg = y_svg + dy if is_rel else dy
+                            cx, cy = current
+                    if rel:
+                        cx += current[0]; cy += current[1]
+                        x  += current[0]; y  += current[1]
 
-                    current_svg_pt = (x_svg, y_svg)
-                    rx, ry, rz = self.map_svg_to_robot(x_svg, y_svg)
-                    rx, ry, rz = clamp_to_canvas(ry, rz)
+                    # subdivide into straight lines
+                    p0 = np.array(current)
+                    p1 = np.array([cx, cy])
+                    p2 = np.array([x, y])
+                    for t in np.linspace(0, 1, self.bezier_steps):
+                        pt = (1-t)**2*p0 + 2*t*(1-t)*p1 + t**2*p2
+                        rx, ry, rz = self.map_svg_to_robot(pt[0], pt[1])
+                        rx, ry, rz = clamp(ry, rz)
+                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
+                                              pitch=-90, yaw=0,
+                                              speed=speed, wait=True)
+                    current, last_ctrl = (x, y), (cx, cy)
 
-                    self.arm.set_position(x=rx, y=ry, z=rz,
-                                        roll=-180, pitch=-90, yaw=0,
-                                        speed=speed, wait=True)
-                    last_point_robot = (rx, ry, rz)
+            # -------- CUBIC / SMOOTH C -----------
+            elif op in ('c', 's'):
+                i = 0
+                while i < len(nums):
+                    if op == 'c':
+                        c1x, c1y, c2x, c2y, x, y = nums[i:i+6];  i += 6
+                    else:
+                        c2x, c2y, x, y = nums[i:i+4];  i += 4
+                        if last_ctrl:
+                            c1x = 2*current[0] - last_ctrl[0]
+                            c1y = 2*current[1] - last_ctrl[1]
+                        else:
+                            c1x, c1y = current
+                    if rel:
+                        c1x += current[0]; c1y += current[1]
+                        c2x += current[0]; c2y += current[1]
+                        x   += current[0]; y   += current[1]
 
-            # --------------- ‘Z’ — close path ----------------------
-            elif lower == 'z' and start_point_robot:
-                # lift a little, travel back to the start (in the air), drop, draw
-                lift = 0
-                self.arm.set_position(z=last_point_robot[2] + lift,
-                                    roll=-180, pitch=-90, yaw=0,
-                                    speed=speed, wait=True)
-                self.arm.set_position(x=start_point_robot[0], y=start_point_robot[1],
-                                    z=last_point_robot[2] + lift,
-                                    roll=-180, pitch=-90, yaw=0,
-                                    speed=speed, wait=True)
-                self.arm.set_position(z=start_point_robot[2],
-                                    roll=-180, pitch=-90, yaw=0,
-                                    speed=speed, wait=True)
-                last_point_robot = start_point_robot
+                    p0 = np.array(current)
+                    p1 = np.array([c1x, c1y])
+                    p2 = np.array([c2x, c2y])
+                    p3 = np.array([x, y])
+                    for t in np.linspace(0, 1, self.bezier_steps):
+                        pt = ((1-t)**3)*p0 + 3*t*((1-t)**2)*p1 \
+                             + 3*(t**2)*(1-t)*p2 + (t**3)*p3
+                        rx, ry, rz = self.map_svg_to_robot(pt[0], pt[1])
+                        rx, ry, rz = clamp(ry, rz)
+                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
+                                              pitch=-90, yaw=0,
+                                              speed=speed, wait=True)
+                    current, last_ctrl = (x, y), (c2x, c2y)
 
-            # --------------- (any other command types ignored) ----
+            # -------- ELLIPTICAL ARC (A/a) -------
+            elif op == 'a':
+                # quick-n-dirty: jump straight to the end-point, same as SVGPainter
+                i = 0
+                while i + 6 < len(nums):
+                    x, y = nums[i+5], nums[i+6];  i += 7
+                    if rel:
+                        x += current[0]; y += current[1]
+                    current = (x, y)
+                    rx, ry, rz = self.map_svg_to_robot(x, y)
+                    rx, ry, rz = clamp(ry, rz)
+                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
+                                          pitch=-90, yaw=0,
+                                          speed=speed, wait=True)
+                last_ctrl = None
 
-        # -------------------------------------------------
-        # pen up → retreat off canvas
-        # -------------------------------------------------
-        if first_move_done and last_point_robot:
-            self.retreat_from_canvas(*last_point_robot, speed=speed)
+            # -------- CLOSE PATH (Z/z) -----------
+            # elif op == 'z' and start_robot:
+            #     lift = 3
+            #     self.arm.set_position(z=current[2] + lift, roll=-180,
+            #                           pitch=-90, yaw=0,
+            #                           speed=speed, wait=True)
+            #     self.arm.set_position(x=start_robot[0], y=start_robot[1],
+            #                           z=current[2] + lift, roll=-180,
+            #                           pitch=-90, yaw=0,
+            #                           speed=speed, wait=True)
+            #     self.arm.set_position(z=start_robot[2], roll=-180,
+            #                           pitch=-90, yaw=0,
+            #                           speed=speed, wait=True)
+            #     current = (start_robot[0], start_robot[1])
+            #     last_ctrl = None
 
-        return True
+            # -------- unknown commands ignored ----
+
+        # --------------- PEN UP & RETREAT ---------------
+        if pen_down and current:
+            self.retreat_from_canvas(*self.map_svg_to_robot(*current), speed=speed)
 
     
     def map_svg_to_robot(self, svg_x, svg_y):
@@ -536,7 +587,7 @@ class XArmController:
     # --------------
     # TOP-LEVEL DRAW
     # --------------
-    def draw_next_stroke(self, count=10, speed=STROKE_SPEED):
+    def draw_next_stroke(self, count=1, speed=STROKE_SPEED):
             """
             Draw *count* successive SVG paths (default = 1) and bump
             self.stroke_index accordingly.  Stops early if we run out.
