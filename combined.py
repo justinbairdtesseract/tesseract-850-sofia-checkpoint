@@ -487,7 +487,7 @@ class XArmController:
             # --------------- ‘Z’ — close path ----------------------
             elif lower == 'z' and start_point_robot:
                 # lift a little, travel back to the start (in the air), drop, draw
-                lift = 5
+                lift = 0
                 self.arm.set_position(z=last_point_robot[2] + lift,
                                     roll=-180, pitch=-90, yaw=0,
                                     speed=speed, wait=True)
