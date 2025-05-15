@@ -485,20 +485,20 @@ class XArmController:
                     last_point_robot = (rx, ry, rz)
 
             # --------------- ‘Z’ — close path ----------------------
-            elif lower == 'z' and start_point_robot:
-                # lift a little, travel back to the start (in the air), drop, draw
-                lift = 5
-                self.arm.set_position(z=last_point_robot[2] + lift,
-                                    roll=-180, pitch=-90, yaw=0,
-                                    speed=speed, wait=True)
-                self.arm.set_position(x=start_point_robot[0], y=start_point_robot[1],
-                                    z=last_point_robot[2] + lift,
-                                    roll=-180, pitch=-90, yaw=0,
-                                    speed=speed, wait=True)
-                self.arm.set_position(z=start_point_robot[2],
-                                    roll=-180, pitch=-90, yaw=0,
-                                    speed=speed, wait=True)
-                last_point_robot = start_point_robot
+            # elif lower == 'z' and start_point_robot:
+            #     # lift a little, travel back to the start (in the air), drop, draw
+            #     lift = 5
+            #     self.arm.set_position(z=last_point_robot[2] + lift,
+            #                         roll=-180, pitch=-90, yaw=0,
+            #                         speed=speed, wait=True)
+            #     self.arm.set_position(x=start_point_robot[0], y=start_point_robot[1],
+            #                         z=last_point_robot[2] + lift,
+            #                         roll=-180, pitch=-90, yaw=0,
+            #                         speed=speed, wait=True)
+            #     self.arm.set_position(z=start_point_robot[2],
+            #                         roll=-180, pitch=-90, yaw=0,
+            #                         speed=speed, wait=True)
+            #     last_point_robot = start_point_robot
 
             # --------------- (any other command types ignored) ----
 
@@ -536,22 +536,22 @@ class XArmController:
     # --------------
     # TOP-LEVEL DRAW
     # --------------
-    def draw_next_stroke(self, speed=STROKE_SPEED):
-        """
-        Draw exactly one path from self.svg_strokes[self.stroke_index],
-        then increment stroke_index.
-        """
-        if self.stroke_index >= len(self.svg_strokes):
-            print("No more SVG strokes to draw.")
-            return
+    def draw_next_stroke(self, count=10, speed=STROKE_SPEED):
+            """
+            Draw *count* successive SVG paths (default = 1) and bump
+            self.stroke_index accordingly.  Stops early if we run out.
+            """
+            drawn = 0
+            while drawn < count and self.stroke_index < len(self.svg_strokes):
+                stroke_data = self.svg_strokes[self.stroke_index]
+                print(f"Drawing stroke {self.stroke_index+1}/{len(self.svg_strokes)}")
+                self.draw_svg_stroke(stroke_data, speed=speed)
+                self.stroke_index += 1
+                drawn += 1
+                self.osc_client.send_message("/stroke/done", self.stroke_index)
 
-        stroke_data = self.svg_strokes[self.stroke_index]
-        print(f"Drawing stroke {self.stroke_index+1}/{len(self.svg_strokes)}")
-        self.draw_svg_stroke(stroke_data, speed=speed)
-        self.stroke_index += 1
-        
-        self.osc_client.send_message("/stroke/done", self.stroke_index)
-        print("Stroke done, sent OSC /stroke/done")
+            if self.stroke_index >= len(self.svg_strokes):
+                print("SVG finished – no more strokes left.")
 
     # --------------
     # EXAMPLE RANDOM-FIGURE DRAWING
@@ -675,7 +675,7 @@ def interactive(address, *args):
         elif sub_cmd == 'next':
             # E.g. /macbook svg next
             controller.osc_client.send_message("/listen", 0)
-            controller.draw_next_stroke(speed=15)  # or pick your speed
+            controller.draw_next_stroke(speed=STROKE_SPEED)
         elif sub_cmd == 'clear':
             # Reset stroke index
             controller.stroke_index = 0
