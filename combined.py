@@ -26,6 +26,13 @@ face_detection_thread = vision.start_face_mesh('webcam', True)
 # face_detection_thread = vision.start_face_mesh('filepath', True) # if you want to load from file
 
 class XArmController:
+    # AUDIO VARIABLE RANGES
+    LOW_SPEED      = 20      # mm / s  when /audio speed = 0
+    HIGH_SPEED     = 200     # mm / s  when /audio speed = 127
+    MAX_JITTER_MM  = 3.0     # ± mm  when /audio jitter = 127
+    SMOOTH_MIN     = 5       # Bézier subdivisions when /audio smooth = 0
+    SMOOTH_MAX     = 30      # Bézier subdivisions when /audio smooth = 127
+    
     def __init__(self, ip_address, osc_ip=MAC_IP, osc_port=MAXMSP_TO_PORT):
         self.IP_ADDRESS = ip_address
         self.arm = XArmAPI(self.IP_ADDRESS)
@@ -66,7 +73,13 @@ class XArmController:
         self.safety_margin = 10  # to keep from going out of bounds
         self.bezier_steps = 15   # for smooth curves
         
-        
+        # --- live-audio modifiers (0–127 from Max) ---
+        self.audio_params = {
+            'speed':   64,   # default midpoint
+            'jitter':  0,
+            'smooth':  64,
+        }
+
 
     def setup(self):
         self.arm.motion_enable(enable=True)
@@ -375,93 +388,100 @@ class XArmController:
        # ------------------------------------------------------------------
     # FULL-FEATURE DRAW-SVG-STROKE  ──  supports M/L/H/V/C/S/Q/T/A/Z
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    #  FULL-FEATURE, AUDIO-RESPONSIVE  draw_svg_stroke
+    # ------------------------------------------------------------------
     def draw_svg_stroke(self, path_data: str, speed: int = 20):
         """
-        Execute a single SVG path *exactly* like the original SVGPainter
-        (curves, close-paths, partial A-arcs, clamping, safety margin),
-        but keep the stroke-by-stroke logic of XArmController.
+        Draw one SVG <path> using live audio modifiers.
+
+        Audio params (0-127) mapped by helper funcs:
+            • speed  →  20‒200 mm/s          (self._speed_mm_s())
+            • jitter →  0‒3   mm random Y/Z (self._jitter_mm())
+            • smooth →  5‒30 Bézier steps   (self._smooth_steps())
         """
 
-        # ---------------- helpers ----------------
+        # ---------- helpers ----------
         cmd_pat = r'([MLHVCSQTAZmlhvcsqtaz])([^MLHVCSQTAZmlhvcsqtaz]*)'
-        num_pat = r'(-?\d+(?:\.\d+)?|\.\d+)'        # handles ".5"
+        num_pat = r'(-?\d+(?:\.\d+)?|\.\d+)'
 
         def parse_path(d):
             for cmd, params in re.findall(cmd_pat, d):
                 yield cmd, [float(n) for n in re.findall(num_pat, params)]
 
         def clamp(y, z):
-            """Keep Y/Z in canvas, respect safety margin, recompute X."""
             y = min(max(y, self.y_min + self.safety_margin),
                     self.y_max - self.safety_margin)
             z = min(max(z, self.z_min + self.safety_margin),
                     self.z_max - self.safety_margin)
             return self.x_from_z(z), y, z
-        # ------------------------------------------
+        # --------------------------------
 
-        current      = None           # (svg_x, svg_y)
-        start_robot  = None           # first point in robot coords
-        last_ctrl    = None           # for smooth curves
-        pen_down     = False
+        steps    = self._smooth_steps()   # live smoothness
+        cur      = None                   # current SVG (x, y)
+        start_rb = None                   # first robot point
+        last_ctl = None                   # for S/s & T/t
+        pen_down = False
 
         for cmd, nums in parse_path(path_data):
-            op, rel = cmd.lower(), cmd.islower()
+            op, rel  = cmd.lower(), cmd.islower()
+            draw_spd = self._speed_mm_s()        # live speed
+            jitter   = self._jitter_mm()         # live jitter
 
-            # ------------ MOVE (M/m) ------------
+            # ========== MOVE (M/m) ==========
             if op == 'm':
                 for i in range(0, len(nums), 2):
                     x, y = nums[i:i+2]
-                    if rel and current:              # relative move
-                        x += current[0];  y += current[1]
-                    current = (x, y)
+                    if rel and cur:
+                        x += cur[0];  y += cur[1]
+                    cur = (x, y)
 
                     rx, ry, rz = self.map_svg_to_robot(x, y)
                     rx, ry, rz = clamp(ry, rz)
 
-                    if not pen_down:                # first point in stroke
-                        self.approach_canvas(rx, ry, rz, speed=speed)
-                        start_robot, pen_down = (rx, ry, rz), True
-                    else:                           # internal move (pen up)
-                        self.arm.set_position(z=rz + 5, roll=-180,
-                                              pitch=-90, yaw=0,
-                                              speed=speed, wait=True)
-                        self.arm.set_position(x=rx, y=ry, z=rz + 5,
-                                              roll=-180, pitch=-90, yaw=0,
-                                              speed=speed, wait=True)
-                        self.arm.set_position(z=rz, roll=-180,
-                                              pitch=-90, yaw=0,
-                                              speed=speed, wait=True)
-                last_ctrl = None
+                    if not pen_down:
+                        self.approach_canvas(rx, ry, rz, speed=draw_spd)
+                        start_rb, pen_down = (rx, ry, rz), True
+                    else:
+                        self.arm.set_position(z=rz+5, roll=-180, pitch=-90,
+                                              yaw=0, speed=draw_spd, wait=True)
+                        self.arm.set_position(x=rx, y=ry, z=rz+5, roll=-180,
+                                              pitch=-90, yaw=0, speed=draw_spd, wait=True)
+                        self.arm.set_position(z=rz, roll=-180, pitch=-90,
+                                              yaw=0, speed=draw_spd, wait=True)
+                last_ctl = None
 
-            # -------- LINE / H / V ---------------
+            # ========== LINE / H / V ==========
             elif op in ('l', 'h', 'v'):
                 segs = []
                 if op == 'l':
-                    segs = [(nums[i], nums[i+1])
-                            for i in range(0, len(nums), 2)]
+                    segs = [(nums[i], nums[i+1]) for i in range(0, len(nums), 2)]
                 elif op == 'h':
                     segs = [(dx, 0) for dx in nums]
-                else:  # 'v'
+                else:
                     segs = [(0, dy) for dy in nums]
 
                 for dx, dy in segs:
-                    x, y = current
+                    x, y = cur
                     if op == 'l':
                         x, y = (x+dx, y+dy) if rel else (dx, dy)
                     elif op == 'h':
                         x = x + dx if rel else dx
                     else:
                         y = y + dy if rel else dy
-                    current = (x, y)
+                    cur = (x, y)
 
                     rx, ry, rz = self.map_svg_to_robot(x, y)
+                    # jitter only on pen-down moves
+                    if jitter:
+                        ry += random.uniform(-jitter, jitter)
+                        rz += random.uniform(-jitter, jitter)
                     rx, ry, rz = clamp(ry, rz)
                     self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                          pitch=-90, yaw=0,
-                                          speed=speed, wait=True)
-                last_ctrl = None
+                                          pitch=-90, yaw=0, speed=draw_spd, wait=True)
+                last_ctl = None
 
-            # -------- QUADRATIC / SMOOTH Q -------
+            # ========== QUADRATIC / SMOOTH Q ==========
             elif op in ('q', 't'):
                 i = 0
                 while i < len(nums):
@@ -469,29 +489,29 @@ class XArmController:
                         cx, cy, x, y = nums[i:i+4];  i += 4
                     else:
                         x, y = nums[i:i+2];          i += 2
-                        if last_ctrl:
-                            cx = 2*current[0] - last_ctrl[0]
-                            cy = 2*current[1] - last_ctrl[1]
+                        if last_ctl:
+                            cx = 2*cur[0] - last_ctl[0]
+                            cy = 2*cur[1] - last_ctl[1]
                         else:
-                            cx, cy = current
+                            cx, cy = cur
                     if rel:
-                        cx += current[0]; cy += current[1]
-                        x  += current[0]; y  += current[1]
+                        cx += cur[0]; cy += cur[1]; x += cur[0]; y += cur[1]
 
-                    # subdivide into straight lines
-                    p0 = np.array(current)
+                    p0 = np.array(cur)
                     p1 = np.array([cx, cy])
                     p2 = np.array([x, y])
-                    for t in np.linspace(0, 1, self.bezier_steps):
+                    for t in np.linspace(0, 1, steps):
                         pt = (1-t)**2*p0 + 2*t*(1-t)*p1 + t**2*p2
                         rx, ry, rz = self.map_svg_to_robot(pt[0], pt[1])
+                        if jitter:
+                            ry += random.uniform(-jitter, jitter)
+                            rz += random.uniform(-jitter, jitter)
                         rx, ry, rz = clamp(ry, rz)
                         self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                              pitch=-90, yaw=0,
-                                              speed=speed, wait=True)
-                    current, last_ctrl = (x, y), (cx, cy)
+                                              pitch=-90, yaw=0, speed=draw_spd, wait=True)
+                    cur, last_ctl = (x, y), (cx, cy)
 
-            # -------- CUBIC / SMOOTH C -----------
+            # ========== CUBIC / SMOOTH C ==========
             elif op in ('c', 's'):
                 i = 0
                 while i < len(nums):
@@ -499,67 +519,69 @@ class XArmController:
                         c1x, c1y, c2x, c2y, x, y = nums[i:i+6];  i += 6
                     else:
                         c2x, c2y, x, y = nums[i:i+4];  i += 4
-                        if last_ctrl:
-                            c1x = 2*current[0] - last_ctrl[0]
-                            c1y = 2*current[1] - last_ctrl[1]
+                        if last_ctl:
+                            c1x = 2*cur[0] - last_ctl[0]
+                            c1y = 2*cur[1] - last_ctl[1]
                         else:
-                            c1x, c1y = current
+                            c1x, c1y = cur
                     if rel:
-                        c1x += current[0]; c1y += current[1]
-                        c2x += current[0]; c2y += current[1]
-                        x   += current[0]; y   += current[1]
+                        c1x += cur[0]; c1y += cur[1]
+                        c2x += cur[0]; c2y += cur[1]
+                        x   += cur[0]; y   += cur[1]
 
-                    p0 = np.array(current)
+                    p0 = np.array(cur)
                     p1 = np.array([c1x, c1y])
                     p2 = np.array([c2x, c2y])
                     p3 = np.array([x, y])
-                    for t in np.linspace(0, 1, self.bezier_steps):
-                        pt = ((1-t)**3)*p0 + 3*t*((1-t)**2)*p1 \
+                    for t in np.linspace(0, 1, steps):
+                        pt = (1-t)**3*p0 + 3*t*((1-t)**2)*p1 \
                              + 3*(t**2)*(1-t)*p2 + (t**3)*p3
                         rx, ry, rz = self.map_svg_to_robot(pt[0], pt[1])
+                        if jitter:
+                            ry += random.uniform(-jitter, jitter)
+                            rz += random.uniform(-jitter, jitter)
                         rx, ry, rz = clamp(ry, rz)
                         self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                              pitch=-90, yaw=0,
-                                              speed=speed, wait=True)
-                    current, last_ctrl = (x, y), (c2x, c2y)
+                                              pitch=-90, yaw=0, speed=draw_spd, wait=True)
+                    cur, last_ctl = (x, y), (c2x, c2y)
 
-            # -------- ELLIPTICAL ARC (A/a) -------
+            # ========== ELLIPTICAL ARC (A/a) ==========
             elif op == 'a':
-                # quick-n-dirty: jump straight to the end-point, same as SVGPainter
                 i = 0
                 while i + 6 < len(nums):
                     x, y = nums[i+5], nums[i+6];  i += 7
                     if rel:
-                        x += current[0]; y += current[1]
-                    current = (x, y)
+                        x += cur[0]; y += cur[1]
+                    cur = (x, y)
                     rx, ry, rz = self.map_svg_to_robot(x, y)
+                    if jitter:
+                        ry += random.uniform(-jitter, jitter)
+                        rz += random.uniform(-jitter, jitter)
                     rx, ry, rz = clamp(ry, rz)
                     self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                          pitch=-90, yaw=0,
-                                          speed=speed, wait=True)
-                last_ctrl = None
+                                          pitch=-90, yaw=0, speed=draw_spd, wait=True)
+                last_ctl = None
 
-            # -------- CLOSE PATH (Z/z) -----------
-            # elif op == 'z' and start_robot:
-            #     lift = 3
-            #     self.arm.set_position(z=current[2] + lift, roll=-180,
-            #                           pitch=-90, yaw=0,
-            #                           speed=speed, wait=True)
-            #     self.arm.set_position(x=start_robot[0], y=start_robot[1],
-            #                           z=current[2] + lift, roll=-180,
-            #                           pitch=-90, yaw=0,
-            #                           speed=speed, wait=True)
-            #     self.arm.set_position(z=start_robot[2], roll=-180,
-            #                           pitch=-90, yaw=0,
-            #                           speed=speed, wait=True)
-            #     current = (start_robot[0], start_robot[1])
-            #     last_ctrl = None
+            # ========== CLOSE PATH (Z/z) ==========
+            elif op == 'z' and start_rb:
+                lift = 3
+                self.arm.set_position(z=rz + lift, roll=-180, pitch=-90,
+                                      yaw=0, speed=draw_spd, wait=True)
+                self.arm.set_position(x=start_rb[0], y=start_rb[1],
+                                      z=rz + lift, roll=-180, pitch=-90,
+                                      yaw=0, speed=draw_spd, wait=True)
+                self.arm.set_position(z=start_rb[2], roll=-180, pitch=-90,
+                                      yaw=0, speed=draw_spd, wait=True)
+                cur = (start_rb[0], start_rb[1])
+                last_ctl = None
 
-            # -------- unknown commands ignored ----
+            # ---- unknown commands ignored ----
 
         # --------------- PEN UP & RETREAT ---------------
-        if pen_down and current:
-            self.retreat_from_canvas(*self.map_svg_to_robot(*current), speed=speed)
+        if pen_down and cur:
+            rx, ry, rz = self.map_svg_to_robot(*cur)
+            self.retreat_from_canvas(rx, ry, rz, speed=self._speed_mm_s())
+
 
     
     def map_svg_to_robot(self, svg_x, svg_y):
@@ -613,6 +635,22 @@ class XArmController:
         square_points = [tl, tr, br, bl, tl]
         for i in range(len(square_points) - 1):
             self.draw_line(square_points[i], square_points[i+1], speed=100)
+
+    ## AUDIO VARIATIONS
+    # translate 0-127 ➜ robot units
+    def _speed_mm_s(self):
+        """0–127 → LOW_SPEED … HIGH_SPEED (mm/s)"""
+        v = self.audio_params['speed']
+        return self.LOW_SPEED + (v / 127) * (self.HIGH_SPEED - self.LOW_SPEED)
+
+    def _jitter_mm(self):
+        """0–127 → 0 … MAX_JITTER_MM (mm)"""
+        return (self.audio_params['jitter'] / 127) * self.MAX_JITTER_MM
+
+    def _smooth_steps(self):
+        """0–127 → SMOOTH_MIN … SMOOTH_MAX (integer steps)"""
+        v = self.audio_params['smooth']
+        return int(self.SMOOTH_MIN + (v / 127) * (self.SMOOTH_MAX - self.SMOOTH_MIN))
 
 
 # Instantiate
@@ -733,7 +771,17 @@ def interactive(address, *args):
             print("Stroke index reset to 0.")
         else:
             print("Unrecognized subcommand for svg:", sub_cmd)
-
+            
+    elif cmd == 'audio':        # /macbook audio <name> <0-127>
+        name  = max_msg[1]      # 'speed' / 'jitter' / 'smooth'
+        value = int(max_msg[2])
+        if name in controller.audio_params:
+            controller.audio_params[name] = max(0, min(127, value))
+            print(f"Audio-param {name} set to {value}")
+        else:
+            print("Unknown audio-param", name)
+            
+            
     else:
         print("Unrecognized OSC message:", max_msg)
 
