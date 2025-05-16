@@ -380,6 +380,7 @@ class XArmController:
         """
         self.svg_strokes = self.parse_svg_file(svg_file_path)
         self.stroke_index = 0
+        self.osc_client.send_message("/strokes/total", len(self.svg_strokes))
         print("SVG loaded. Strokes ready to be drawn.")
 
     # --------------
@@ -765,6 +766,23 @@ def interactive(address, *args):
             # E.g. /macbook svg next
             controller.osc_client.send_message("/listen", 0)
             controller.draw_next_stroke(speed=STROKE_SPEED)
+        elif sub_cmd == 'goto':             # /macbook svg goto 45
+            idx = int(max_msg[2])
+            if 0 <= idx < len(controller.svg_strokes):
+                controller.stroke_index = idx
+                print("Stroke index set to", idx)
+            else:
+                print("Stroke index out of range")
+        elif sub_cmd == 'exec':             # /macbook svg exec 45
+            idx = int(max_msg[2])
+            if 0 <= idx < len(controller.svg_strokes):
+                controller.osc_client.send_message("/listen", 0)
+                controller.draw_svg_stroke(controller.svg_strokes[idx],
+                                            speed=STROKE_SPEED)
+                controller.osc_client.send_message("/stroke/done", idx+1)
+            else:
+                print("Stroke index out of range")      
+                
         elif sub_cmd == 'clear':
             # Reset stroke index
             controller.stroke_index = 0
