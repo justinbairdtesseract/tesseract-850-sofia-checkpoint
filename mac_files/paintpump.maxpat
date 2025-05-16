@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ -475.0, -1353.0, 1788.0, 1019.0 ],
+		"rect" : [ -532.0, -1017.0, 1788.0, 1019.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_fontsize" : 12.0,
@@ -40,12 +40,62 @@
 		"assistshowspatchername" : 0,
 		"boxes" : [ 			{
 				"box" : 				{
-					"id" : "obj-109",
+					"id" : "obj-114",
+					"linecount" : 3,
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 1499.0, 564.0, 150.0, 20.0 ],
-					"text" : "go to stroke"
+					"patching_rect" : [ 1646.0, 572.0, 150.0, 60.0 ],
+					"presentation_linecount" : 3,
+					"text" : " draws stroke 45 without altering stroke_index.\n\n"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-110",
+					"maxclass" : "number",
+					"numinlets" : 1,
+					"numoutlets" : 2,
+					"outlettype" : [ "", "bang" ],
+					"parameter_enable" : 0,
+					"patching_rect" : [ 1594.0, 587.0, 50.0, 22.0 ]
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-111",
+					"maxclass" : "message",
+					"numinlets" : 2,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 1584.0, 634.0, 128.0, 22.0 ],
+					"presentation_linecount" : 2,
+					"text" : "/macbook svg exec $1"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-112",
+					"maxclass" : "newobj",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 1584.0, 693.0, 164.0, 22.0 ],
+					"text" : "udpsend 192.168.0.110 7655"
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"id" : "obj-109",
+					"linecount" : 4,
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 1378.0, 572.0, 150.0, 60.0 ],
+					"text" : "sets the internal pointer without drawing. ie next stroke will be from this one"
 				}
 
 			}
@@ -57,7 +107,7 @@
 					"numoutlets" : 2,
 					"outlettype" : [ "", "bang" ],
 					"parameter_enable" : 0,
-					"patching_rect" : [ 1433.0, 564.0, 50.0, 22.0 ]
+					"patching_rect" : [ 1312.0, 593.0, 50.0, 22.0 ]
 				}
 
 			}
@@ -68,7 +118,7 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 1423.0, 611.0, 126.0, 22.0 ],
+					"patching_rect" : [ 1302.0, 640.0, 126.0, 22.0 ],
 					"text" : "/macbook svg goto $1"
 				}
 
@@ -79,7 +129,7 @@
 					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 1423.0, 670.0, 164.0, 22.0 ],
+					"patching_rect" : [ 1302.0, 699.0, 164.0, 22.0 ],
 					"text" : "udpsend 192.168.0.110 7655"
 				}
 
@@ -4989,6 +5039,20 @@
 				"patchline" : 				{
 					"destination" : [ "obj-3", 0 ],
 					"source" : [ "obj-11", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-111", 0 ],
+					"source" : [ "obj-110", 0 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-112", 0 ],
+					"source" : [ "obj-111", 0 ]
 				}
 
 			}
