@@ -174,161 +174,167 @@ class SVGPainter:
 
     def draw_svg_path(self, path_data, speed=20):
         """
-        Draw an SVG path on the canvas with safety checks.
-        
+        Draw a single SVG path on the canvas.
+
         Args:
-            path_data (str): SVG path data
-            speed (int): Drawing speed
+            path_data (str): SVG path data (‘d’ attribute)
+            speed (int): Drawing speed in % of the controller scale
         """
         path_commands = self.parse_path(path_data)
-        
-        current_point = None
-        start_point = None
-        last_control_point = None  # For smooth curves
-        
+
+        current_point = None               # current point in SVG coordinates
+        subpath_start_point = None         # first robot point of the current sub-path
+        last_robot_pos = None              # last robot (x, y, z) actually reached
+        last_control_point = None          # for smooth Béziers
+
         for cmd, params in path_commands:
             cmd_lower = cmd.lower()
-            relative = cmd.islower()  # whether it's a relative command
-            
-            if cmd_lower == 'm':  # Move-to
-                if len(params) >= 2:
-                    x, y = params[0], params[1]
+            relative = cmd.islower()
+
+            # ---------------------------------------------------------  M / m
+            if cmd_lower == 'm':
+                # lift from the previous sub-path (if any)
+                if last_robot_pos is not None:
+                    self.retreat_from_canvas(*last_robot_pos, speed=speed)
+
+                # ‘M’ may contain multiple coordinate pairs
+                for i in range(0, len(params), 2):
+                    if i + 1 >= len(params):
+                        break
+                    x, y = params[i:i + 2]
                     if relative and current_point:
                         x += current_point[0]
                         y += current_point[1]
-                    
                     current_point = (x, y)
-                    
-                    robot_x, robot_y, robot_z = self.map_svg_to_robot(x, y)
-                    
-                    # If this is the first point of a new path
-                    if start_point is None:
-                        self.approach_canvas(robot_x, robot_y, robot_z, speed=speed)
-                    else:
-                        # Lift pen, move, lower pen again
-                        self.retreat_from_canvas(start_point[0], start_point[1], start_point[2], speed=speed)
-                        self.approach_canvas(robot_x, robot_y, robot_z, speed=speed)
-                    
-                    start_point = (robot_x, robot_y, robot_z)
-                    
-                    # If M has multiple coordinate pairs, treat them like L
-                    for i in range(2, len(params), 2):
-                        if i + 1 < len(params):
-                            x, y = params[i], params[i + 1]
-                            if relative:
-                                x += current_point[0]
-                                y += current_point[1]
-                            current_point = (x, y)
-                            rx, ry, rz = self.map_svg_to_robot(x, y)
-                            self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
 
-            elif cmd_lower == 'l':  # Line-to
+                    rx, ry, rz = self.map_svg_to_robot(x, y)
+                    self.approach_canvas(rx, ry, rz, speed=speed)
+
+                    subpath_start_point = last_robot_pos = (rx, ry, rz)
+
+            # ---------------------------------------------------------  L / l
+            elif cmd_lower == 'l':
                 for i in range(0, len(params), 2):
-                    if i + 1 < len(params):
-                        x, y = params[i], params[i+1]
-                        if relative and current_point:
-                            x += current_point[0]
-                            y += current_point[1]
-                        current_point = (x, y)
-                        
-                        robot_x, robot_y, robot_z = self.map_svg_to_robot(x, y)
-                        # Clamp to bounds
-                        robot_y = max(min(robot_y, self.y_max), self.y_min)
-                        robot_z = max(min(robot_z, self.z_max), self.z_min)
-                        robot_x = self.x_from_z(robot_z)
-                        
-                        self.arm.set_position(
-                            x=robot_x, y=robot_y, z=robot_z, 
-                            roll=-180, pitch=-90, yaw=0,
-                            speed=speed, wait=True
-                        )
+                    if i + 1 >= len(params):
+                        break
+                    x, y = params[i:i + 2]
+                    if relative and current_point:
+                        x += current_point[0]
+                        y += current_point[1]
+                    current_point = (x, y)
 
-            elif cmd_lower == 'h':  # Horizontal line
+                    rx, ry, rz = self.map_svg_to_robot(x, y)
+                    ry = max(min(ry, self.y_max), self.y_min)
+                    rz = max(min(rz, self.z_max), self.z_min)
+                    rx = self.x_from_z(rz)
+
+                    self.arm.set_position(x=rx, y=ry, z=rz,
+                                        roll=-180, pitch=-90, yaw=0,
+                                        speed=speed, wait=True)
+                    last_robot_pos = (rx, ry, rz)
+
+            # ---------------------------------------------------------  H / h
+            elif cmd_lower == 'h':
                 for x in params:
                     if relative and current_point:
                         x += current_point[0]
                     current_point = (x, current_point[1])
-                    
+
                     rx, ry, rz = self.map_svg_to_robot(x, current_point[1])
                     ry = max(min(ry, self.y_max), self.y_min)
                     rz = max(min(rz, self.z_max), self.z_min)
                     rx = self.x_from_z(rz)
-                    
-                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
 
-            elif cmd_lower == 'v':  # Vertical line
+                    self.arm.set_position(x=rx, y=ry, z=rz,
+                                        roll=-180, pitch=-90, yaw=0,
+                                        speed=speed, wait=True)
+                    last_robot_pos = (rx, ry, rz)
+
+            # ---------------------------------------------------------  V / v
+            elif cmd_lower == 'v':
                 for y in params:
                     if relative and current_point:
                         y += current_point[1]
                     current_point = (current_point[0], y)
-                    
+
                     rx, ry, rz = self.map_svg_to_robot(current_point[0], y)
                     ry = max(min(ry, self.y_max), self.y_min)
                     rz = max(min(rz, self.z_max), self.z_min)
                     rx = self.x_from_z(rz)
-                    
-                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
 
-            elif cmd_lower == 'q':  # Quadratic Bezier
-                if len(params) >= 4 and current_point is not None:
-                    cx, cy, x, y = params[0:4]
+                    self.arm.set_position(x=rx, y=ry, z=rz,
+                                        roll=-180, pitch=-90, yaw=0,
+                                        speed=speed, wait=True)
+                    last_robot_pos = (rx, ry, rz)
+
+            # ---------------------------------------------------------  Q / q
+            elif cmd_lower == 'q' and current_point is not None:
+                if len(params) >= 4:
+                    cx, cy, x, y = params[:4]
                     if relative:
                         cx += current_point[0]
                         cy += current_point[1]
                         x += current_point[0]
                         y += current_point[1]
-                    
+
                     last_control_point = (cx, cy)
                     start_x, start_y = current_point
                     steps = self.bezier_steps
 
                     for t in np.linspace(0, 1, steps):
-                        px = (1 - t)**2 * start_x + 2*t*(1 - t)*cx + t**2 * x
-                        py = (1 - t)**2 * start_y + 2*t*(1 - t)*cy + t**2 * y
-                        
+                        px = (1 - t) ** 2 * start_x + 2 * t * (1 - t) * cx + t ** 2 * x
+                        py = (1 - t) ** 2 * start_y + 2 * t * (1 - t) * cy + t ** 2 * y
+
                         rx, ry, rz = self.map_svg_to_robot(px, py)
                         ry = max(min(ry, self.y_max), self.y_min)
                         rz = max(min(rz, self.z_max), self.z_min)
                         rx = self.x_from_z(rz)
-                        
-                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
+                        self.arm.set_position(x=rx, y=ry, z=rz,
+                                            roll=-180, pitch=-90, yaw=0,
+                                            speed=speed, wait=True)
+                        last_robot_pos = (rx, ry, rz)
 
                     current_point = (x, y)
 
-            elif cmd_lower == 't':  # Smooth quadratic
-                if len(params) >= 2 and current_point is not None:
-                    x, y = params[0:2]
+            # ---------------------------------------------------------  T / t
+            elif cmd_lower == 't' and current_point is not None:
+                if len(params) >= 2:
+                    x, y = params[:2]
                     if relative:
                         x += current_point[0]
                         y += current_point[1]
-                    
-                    # Reflect last control point if we have one
+
                     if last_control_point:
                         cx = 2 * current_point[0] - last_control_point[0]
                         cy = 2 * current_point[1] - last_control_point[1]
                     else:
                         cx, cy = current_point
-                    
+
                     last_control_point = (cx, cy)
                     start_x, start_y = current_point
                     steps = self.bezier_steps
 
                     for t in np.linspace(0, 1, steps):
-                        px = (1 - t)**2 * start_x + 2*t*(1 - t)*cx + t**2 * x
-                        py = (1 - t)**2 * start_y + 2*t*(1 - t)*cy + t**2 * y
-                        
+                        px = (1 - t) ** 2 * start_x + 2 * t * (1 - t) * cx + t ** 2 * x
+                        py = (1 - t) ** 2 * start_y + 2 * t * (1 - t) * cy + t ** 2 * y
+
                         rx, ry, rz = self.map_svg_to_robot(px, py)
                         ry = max(min(ry, self.y_max), self.y_min)
                         rz = max(min(rz, self.z_max), self.z_min)
                         rx = self.x_from_z(rz)
-                        
-                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
+                        self.arm.set_position(x=rx, y=ry, z=rz,
+                                            roll=-180, pitch=-90, yaw=0,
+                                            speed=speed, wait=True)
+                        last_robot_pos = (rx, ry, rz)
 
                     current_point = (x, y)
 
-            elif cmd_lower == 'c':  # Cubic Bezier
-                if len(params) >= 6 and current_point is not None:
-                    c1x, c1y, c2x, c2y, x, y = params[0:6]
+            # ---------------------------------------------------------  C / c
+            elif cmd_lower == 'c' and current_point is not None:
+                if len(params) >= 6:
+                    c1x, c1y, c2x, c2y, x, y = params[:6]
                     if relative:
                         c1x += current_point[0]
                         c1y += current_point[1]
@@ -336,94 +342,115 @@ class SVGPainter:
                         c2y += current_point[1]
                         x += current_point[0]
                         y += current_point[1]
-                    
+
                     last_control_point = (c2x, c2y)
                     start_x, start_y = current_point
                     steps = self.bezier_steps
 
                     for t in np.linspace(0, 1, steps):
-                        px = (1 - t)**3 * start_x \
-                             + 3*t*(1 - t)**2 * c1x \
-                             + 3*t**2*(1 - t) * c2x \
-                             + t**3 * x
-                        py = (1 - t)**3 * start_y \
-                             + 3*t*(1 - t)**2 * c1y \
-                             + 3*t**2*(1 - t) * c2y \
-                             + t**3 * y
-                        
+                        px = ((1 - t) ** 3 * start_x +
+                            3 * t * (1 - t) ** 2 * c1x +
+                            3 * t ** 2 * (1 - t) * c2x +
+                            t ** 3 * x)
+                        py = ((1 - t) ** 3 * start_y +
+                            3 * t * (1 - t) ** 2 * c1y +
+                            3 * t ** 2 * (1 - t) * c2y +
+                            t ** 3 * y)
+
                         rx, ry, rz = self.map_svg_to_robot(px, py)
                         ry = max(min(ry, self.y_max), self.y_min)
                         rz = max(min(rz, self.z_max), self.z_min)
                         rx = self.x_from_z(rz)
-                        
-                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
+                        self.arm.set_position(x=rx, y=ry, z=rz,
+                                            roll=-180, pitch=-90, yaw=0,
+                                            speed=speed, wait=True)
+                        last_robot_pos = (rx, ry, rz)
 
                     current_point = (x, y)
 
-            elif cmd_lower == 's':  # Smooth cubic
-                if len(params) >= 4 and current_point is not None:
-                    c2x, c2y, x, y = params[0:4]
+            # ---------------------------------------------------------  S / s
+            elif cmd_lower == 's' and current_point is not None:
+                if len(params) >= 4:
+                    c2x, c2y, x, y = params[:4]
                     if relative:
                         c2x += current_point[0]
                         c2y += current_point[1]
                         x += current_point[0]
                         y += current_point[1]
-                    
+
                     if last_control_point:
                         c1x = 2 * current_point[0] - last_control_point[0]
                         c1y = 2 * current_point[1] - last_control_point[1]
                     else:
                         c1x, c1y = current_point
-                    
+
                     last_control_point = (c2x, c2y)
                     start_x, start_y = current_point
                     steps = self.bezier_steps
 
                     for t in np.linspace(0, 1, steps):
-                        px = (1 - t)**3 * start_x \
-                             + 3*t*(1 - t)**2 * c1x \
-                             + 3*t**2*(1 - t) * c2x \
-                             + t**3 * x
-                        py = (1 - t)**3 * start_y \
-                             + 3*t*(1 - t)**2 * c1y \
-                             + 3*t**2*(1 - t) * c2y \
-                             + t**3 * y
-                        
+                        px = ((1 - t) ** 3 * start_x +
+                            3 * t * (1 - t) ** 2 * c1x +
+                            3 * t ** 2 * (1 - t) * c2x +
+                            t ** 3 * x)
+                        py = ((1 - t) ** 3 * start_y +
+                            3 * t * (1 - t) ** 2 * c1y +
+                            3 * t ** 2 * (1 - t) * c2y +
+                            t ** 3 * y)
+
                         rx, ry, rz = self.map_svg_to_robot(px, py)
                         ry = max(min(ry, self.y_max), self.y_min)
                         rz = max(min(rz, self.z_max), self.z_min)
                         rx = self.x_from_z(rz)
-                        
-                        self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
+                        self.arm.set_position(x=rx, y=ry, z=rz,
+                                            roll=-180, pitch=-90, yaw=0,
+                                            speed=speed, wait=True)
+                        last_robot_pos = (rx, ry, rz)
 
                     current_point = (x, y)
 
-            elif cmd_lower == 'a':  # Arc
-                # Not fully implemented
-                print(f"Warning: Arc commands (A/a) are not fully implemented; approximating endpoint.")
-                if len(params) >= 7 and current_point is not None:
+            # ---------------------------------------------------------  A / a
+            elif cmd_lower == 'a' and current_point is not None:
+                # still approximated as a straight line
+                if len(params) >= 7:
                     x, y = params[5], params[6]
                     if relative:
                         x += current_point[0]
                         y += current_point[1]
                     current_point = (x, y)
-                    
+
                     rx, ry, rz = self.map_svg_to_robot(x, y)
-                    self.arm.set_position(x=rx, y=ry, z=rz, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+                    ry = max(min(ry, self.y_max), self.y_min)
+                    rz = max(min(rz, self.z_max), self.z_min)
+                    rx = self.x_from_z(rz)
 
-            elif cmd_lower == 'z':  # Close path
-                if start_point and current_point:
-                    # Move back to the start point in robot coords
-                    self.arm.set_position(
-                        x=start_point[0], y=start_point[1], z=start_point[2],
-                        roll=-180, pitch=-90, yaw=0, speed=speed, wait=True
-                    )
+                    self.arm.set_position(x=rx, y=ry, z=rz,
+                                        roll=-180, pitch=-90, yaw=0,
+                                        speed=speed, wait=True)
+                    last_robot_pos = (rx, ry, rz)
 
-        # After the path is finished, lift the pen
-        if start_point:
-            self.retreat_from_canvas(start_point[0], start_point[1], start_point[2], speed=speed)
-        
+            # ---------------------------------------------------------  Z / z
+            elif cmd_lower == 'z':
+                if subpath_start_point:
+                    self.arm.set_position(x=subpath_start_point[0],
+                                        y=subpath_start_point[1],
+                                        z=subpath_start_point[2],
+                                        roll=-180, pitch=-90, yaw=0,
+                                        speed=speed, wait=True)
+                    last_robot_pos = subpath_start_point
+                    current_point = None
+                    subpath_start_point = None
+
+        # -------- end for -------------------------------------------------------
+
+        # lift away from the canvas where we actually ended
+        if last_robot_pos:
+            self.retreat_from_canvas(*last_robot_pos, speed=speed)
+
         return True
+
 
     def rect_to_path(self, rect):
         """Convert a rectangle element to path data."""
