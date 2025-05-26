@@ -142,15 +142,18 @@ class SVGPainter:
         time.sleep(0.2)  # short pause
 
     def retreat_from_canvas(self, x, y, z, speed=20):
-        """Retreat from the canvas after drawing, with safety checks."""
+        """Lift straight back along X only, keeping the actual Y and Z."""
+        # keep Y and Z exactly as they are
         y = max(min(y, self.y_max), self.y_min)
         z = max(min(z, self.z_max), self.z_min)
-        x = self.x_from_z(z)
-        
+
+        # move off the canvas by off_canvas_distance
         retreat_x = x - self.off_canvas_distance
-        self.arm.set_position(x=retreat_x, y=y, z=z, roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-        
-        time.sleep(0.2)  # short pause
+
+        self.arm.set_position(x=retreat_x, y=y, z=z,
+                            roll=-180, pitch=-90, yaw=0,
+                            speed=speed, wait=True)
+        time.sleep(0.2)
 
     def parse_path(self, path_data):
         """
