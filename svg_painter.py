@@ -146,7 +146,7 @@ class SVGPainter:
         # keep Y and Z exactly as they are
         y = max(min(y, self.y_max), self.y_min)
         z = max(min(z, self.z_max), self.z_min)
-
+        print('retreat, not down?')
         # move off the canvas by off_canvas_distance
         retreat_x = x - self.off_canvas_distance
 
