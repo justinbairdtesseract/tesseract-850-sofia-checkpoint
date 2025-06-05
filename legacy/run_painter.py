@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from svg_painter import SVGPainter
+from legacy.svg_painter import SVGPainter
 import time
 import argparse
 
