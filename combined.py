@@ -72,6 +72,10 @@ class XArmController:
         self.svg_height = 600
         self.safety_margin = 10  # to keep from going out of bounds
         self.bezier_steps = 15   # for smooth curves
+
+        # Brush attributes
+        self.active_brush_index = 0
+        self.brush_offset_mm = 25
         
         # --- live-audio modifiers (0–127 from Max) ---
         self.audio_params = {
@@ -624,7 +628,19 @@ class XArmController:
 
         # flipped
         robot_z = self.z_min + ny * (self.z_max - self.z_min)
-        robot_y = self.y_max - nx * (self.y_max - self.y_min)
+
+        # Calculate brush offset
+        # active_brush_index is 0, 1, 2, or 3
+        # brush_offset_mm is the distance between brushes
+        total_offset = self.active_brush_index * self.brush_offset_mm
+
+        # Apply offset to robot_y
+        # If SVG X (nx) increases -> robot_y decreases (moves from y_max towards y_min)
+        # A positive offset means the brush is further along the Y axis (e.g. to the right)
+        # So, to compensate and draw in the same SVG location, the robot's centerline
+        # needs to shift "left" (towards y_min, or more negative if y_max is positive, or less positive if y_max is positive).
+        # This means subtracting the offset.
+        robot_y = (self.y_max - nx * (self.y_max - self.y_min)) - total_offset
 
         # Finally, compute x from z
         robot_x = self.x_from_z(robot_z)
@@ -676,17 +692,19 @@ class XArmController:
         return int(self.SMOOTH_MIN + (v / 127) * (self.SMOOTH_MAX - self.SMOOTH_MIN))
 
 
-# Instantiate
-controller = XArmController('192.168.0.203')
-controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True)
-controller.osc_client.send_message("/listen", 1)
-
+# Global controller instance, to be initialized in main
+controller = None
 
 def interactive(address, *args):
     """
     Example OSC handler. We’ll add a “svg” sub-command for loading and stepping
     through the SVG, stroke by stroke.
     """
+    global controller # Ensure we're using the global controller initialized in main
+    if not controller:
+        print("Error: Controller not initialized.")
+        return
+
     max_msg = list(args)
     cmd = max_msg[0]
 
@@ -820,23 +838,59 @@ def interactive(address, *args):
             print(f"Audio-param {name} set to {value}")
         else:
             print("Unknown audio-param", name)
-            
+
+    elif cmd == 'brush':
+        brush_idx = int(max_msg[1])
+        if 0 <= brush_idx <= 3:  # Assuming 4 brushes, so indices 0-3
+            controller.active_brush_index = brush_idx
+            print(f"Active brush index set to {brush_idx}")
+        else:
+            print(f"Invalid brush index: {brush_idx}. Must be between 0 and 3.")
             
     else:
         print("Unrecognized OSC message:", max_msg)
 
+# This global variable will hold the server instance
+osc_server_instance = None
 
-# Setup OSC server
-osc_dispatcher = dispatcher.Dispatcher()
-osc_dispatcher.map("/macbook", interactive)
+def on_exit(controller_instance, server_instance):
+    print("Exiting program...")
+    if controller_instance:
+        print("Disconnecting XArm controller...")
+        controller_instance.disconnect()
+    if server_instance:
+        print("Closing OSC server...")
+        server_instance.server_close()
+    print("Cleanup finished.")
 
-server = osc_server.ThreadingOSCUDPServer((LINUX_IP, MAXMSP_FROM_PORT), osc_dispatcher)
-print("Serving on {}".format(server.server_address))
+def main():
+    global controller # Declare controller as global to modify it
+    global osc_server_instance
 
+    # Instantiate controller
+    controller = XArmController('192.168.0.203') # Or get IP from config/env
+    controller.arm.set_servo_angle(servo_id=5, angle=90, wait=True) # Example setup
+    controller.osc_client.send_message("/listen", 1)
 
-def on_exit():
-    controller.disconnect()
-    server.server_close()
+    # Setup OSC server
+    osc_dispatcher = dispatcher.Dispatcher()
+    osc_dispatcher.map("/macbook", interactive) # interactive will use the global controller
 
-atexit.register(on_exit)
-server.serve_forever()
+    osc_server_instance = osc_server.ThreadingOSCUDPServer((LINUX_IP, MAXMSP_FROM_PORT), osc_dispatcher)
+    print("Serving on {}".format(osc_server_instance.server_address))
+
+    # Register exit handler
+    # Pass controller and server to on_exit using a lambda or functools.partial
+    # because atexit doesn't pass arguments to registered functions directly.
+    atexit.register(lambda: on_exit(controller, osc_server_instance))
+
+    try:
+        osc_server_instance.serve_forever()
+    except KeyboardInterrupt:
+        print("Keyboard interrupt received, shutting down.")
+    finally:
+        # Ensure cleanup is called if serve_forever() exits unexpectedly
+        on_exit(controller, osc_server_instance)
+
+if __name__ == '__main__':
+    main()
