@@ -617,60 +617,75 @@ class XArmController:
 
 
     # def map_svg_to_robot(self, svg_x, svg_y):
-    #     nx = svg_x / self.svg_width
-    #     ny = svg_y / self.svg_height
+    #     """
+    #     Convert (svg_x, svg_y) in [0..svg_width, 0..svg_height]
+    #     into (robot_x, robot_y, robot_z).
 
-    #     # Flip Y axis for robot_z (top of SVG = z_max)
+    #     Here we flip the vertical axis so that svg_y=0 corresponds
+    #     to z_max (top) and svg_y=svg_height corresponds to z_min (bottom).
+    #     """
+    #     nx = svg_x / self.svg_width   # 0..1 (left to right)
+    #     ny = svg_y / self.svg_height  # 0..1 (top to bottom)
+
+    #     # # FLIP the vertical axis for z:
+    #     # robot_z = self.z_max - ny * (self.z_max - self.z_min)
+    #     # robot_y = self.y_min + nx * (self.y_max - self.y_min)
+
+    #     # flipped
+    #     # robot_z = self.z_min + ny * (self.z_max - self.z_min)
     #     robot_z = self.z_max - ny * (self.z_max - self.z_min)
 
-    #     # Compensate for brush position (subtract offset)
     #     total_offset = self.active_brush_index * self.brush_offset_mm
-    #     robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
+        
+    #     # robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
 
+    #     robot_y = self.y_min + nx * (self.y_max - self.y_min)
+
+
+    #     # Finally, compute x from z
     #     robot_x = self.x_from_z(robot_z)
     #     return (robot_x, robot_y, robot_z)
     
+    
     def map_svg_to_robot(self, svg_x, svg_y):
         """
-        Convert (svg_x, svg_y) in [0..svg_width, 0..svg_height]
-        into (robot_x, robot_y, robot_z).
+        Convert an SVG point (svg_x, svg_y) into robot-space (x, y, z).
 
-        Here we flip the vertical axis so that svg_y=0 corresponds
-        to z_max (top) and svg_y=svg_height corresponds to z_min (bottom).
+        ─────────────────────────────────────────────────────────────
+        • Horizontally mirrors the drawing (fixes left↔right).
+        • Vertically mirrors the drawing (fixes top↔bottom).        ← new
+        • Compensates for a 4-brush head arranged symmetrically
+        about the tool centre line:
+
+            brush index : 0     1     2     3
+            y-offset    : –37.5 –12.5 +12.5 +37.5 mm
+
+        (Assumes brush_offset_mm = 25.)
         """
-        nx = svg_x / self.svg_width   # 0..1 (left to right)
-        ny = svg_y / self.svg_height  # 0..1 (top to bottom)
+        # 1 ─── normalise SVG coords and flip both axes
+        nx = 1.0 - (svg_x / self.svg_width)   # mirror left↔right
+        ny = 1.0 - (svg_y / self.svg_height)  # mirror top↔bottom
 
-        # # FLIP the vertical axis for z:
-        # robot_z = self.z_max - ny * (self.z_max - self.z_min)
-        # robot_y = self.y_min + nx * (self.y_max - self.y_min)
-
-        # flipped
-        # robot_z = self.z_min + ny * (self.z_max - self.z_min)
+        # 2 ─── map vertical position to robot Z
+        #      SVG top (ny=0 after flip)  → z_min   (bottom of canvas)
+        #      SVG bottom (ny=1)          → z_max   (top of canvas)
         robot_z = self.z_max - ny * (self.z_max - self.z_min)
 
+        # 3 ─── map horizontal position to robot Y
+        base_y = self.y_min + nx * (self.y_max - self.y_min)
 
-        # Calculate brush offset
-        # active_brush_index is 0, 1, 2, or 3
-        # brush_offset_mm is the distance between brushes
-        total_offset = self.active_brush_index * self.brush_offset_mm
+        centred_idx  = self.active_brush_index - 1.5          # −1.5 … +1.5
+        total_offset = centred_idx * self.brush_offset_mm     # ±37.5 mm
+        robot_y      = base_y + total_offset
 
-        # Apply offset to robot_y
-        # If SVG X (nx) increases -> robot_y decreases (moves from y_max towards y_min)
-        # A positive offset means the brush is further along the Y axis (e.g. to the right)
-        # So, to compensate and draw in the same SVG location, the robot's centerline
-        # needs to shift "left" (towards y_min, or more negative if y_max is positive, or less positive if y_max is positive).
-        # This means subtracting the offset.
-        # robot_y = (self.y_max - nx * (self.y_max - self.y_min)) - total_offset
-        
-        # robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
-
-        robot_y = self.y_min + nx * (self.y_max - self.y_min)
-
-
-        # Finally, compute x from z
+        # 4 ─── derive robot X from Z (plane equation)
         robot_x = self.x_from_z(robot_z)
-        return (robot_x, robot_y, robot_z)
+
+        return robot_x, robot_y, robot_z
+
+
+        
+    
     # --------------
     # TOP-LEVEL DRAW
     # --------------
