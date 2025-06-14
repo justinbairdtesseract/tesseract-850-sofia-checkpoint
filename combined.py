@@ -470,7 +470,7 @@ class XArmController:
                                             pitch=-90, yaw=0, speed=draw_spd, wait=True)
                         self.arm.set_position(z=rz, roll=-180, pitch=-90, yaw=0,
                                             speed=draw_spd, wait=True)
-
+                    start_svg = (x, y)          # ← add this
                     start_rb = last_rb = (rx, ry, rz)
                 last_ctl = None
 
@@ -605,7 +605,8 @@ class XArmController:
                                     z=start_rb[2], roll=-180,
                                     pitch=-90, yaw=0, speed=draw_spd, wait=True)
                 last_rb  = start_rb
-                cur      = (start_rb[0], start_rb[1])
+                cur = start_svg
+                # cur      = (start_rb[0], start_rb[1])
                 last_ctl = None
 
             # ---- unrecognised commands ignored ----
@@ -645,7 +646,9 @@ class XArmController:
         # robot_y = self.y_min + nx * (self.y_max - self.y_min)
 
         # flipped
-        robot_z = self.z_min + ny * (self.z_max - self.z_min)
+        # robot_z = self.z_min + ny * (self.z_max - self.z_min)
+        robot_z = self.z_max - ny * (self.z_max - self.z_min)
+
 
         # Calculate brush offset
         # active_brush_index is 0, 1, 2, or 3
@@ -658,7 +661,9 @@ class XArmController:
         # So, to compensate and draw in the same SVG location, the robot's centerline
         # needs to shift "left" (towards y_min, or more negative if y_max is positive, or less positive if y_max is positive).
         # This means subtracting the offset.
-        robot_y = (self.y_max - nx * (self.y_max - self.y_min)) - total_offset
+        # robot_y = (self.y_max - nx * (self.y_max - self.y_min)) - total_offset
+        robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
+
 
         # Finally, compute x from z
         robot_x = self.x_from_z(robot_z)
