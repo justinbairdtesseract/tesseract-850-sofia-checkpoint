@@ -406,7 +406,7 @@ class XArmController:
     # ------------------------------------------------------------------
     #  FULL-FEATURE, AUDIO-RESPONSIVE  draw_svg_stroke
     # ------------------------------------------------------------------
-    def draw_svg_stroke(self, path_data: str, speed: int = 20):
+    def draw_svg_stroke(self, path_data: str, speed: int | None = None):
         """
         Draw one SVG <path> using live-audio modifiers.
 
@@ -415,6 +415,10 @@ class XArmController:
             jitter →  0–3 mm ±Y/±Z     (self._jitter_mm)
             smooth →  5–30 Bézier pts  (self._smooth_steps)
         """
+        if speed is None:
+            base_speed = self._speed_mm_s()  # live from audio param
+        else:
+            base_speed = speed
         # ---------- helpers ----------
         cmd_pat = r'([MLHVCSQTAZmlhvcsqtaz])([^MLHVCSQTAZmlhvcsqtaz]*)'
         num_pat = r'(-?\d+(?:\.\d+)?|\.\d+)'
@@ -610,45 +614,59 @@ class XArmController:
         if pen_down and last_rb:
             self.retreat_from_canvas(*last_rb, speed=self._speed_mm_s())
 
-    
+
     def map_svg_to_robot(self, svg_x, svg_y):
-        """
-        Convert (svg_x, svg_y) in [0..svg_width, 0..svg_height]
-        into (robot_x, robot_y, robot_z).
+        nx = svg_x / self.svg_width
+        ny = svg_y / self.svg_height
 
-        Here we flip the vertical axis so that svg_y=0 corresponds
-        to z_max (top) and svg_y=svg_height corresponds to z_min (bottom).
-        """
-        nx = svg_x / self.svg_width   # 0..1 (left to right)
-        ny = svg_y / self.svg_height  # 0..1 (top to bottom)
+        # Flip Y axis for robot_z (top of SVG = z_max)
+        robot_z = self.z_max - ny * (self.z_max - self.z_min)
 
-        # # FLIP the vertical axis for z:
-        # robot_z = self.z_max - ny * (self.z_max - self.z_min)
-        # robot_y = self.y_min + nx * (self.y_max - self.y_min)
-
-        # flipped
-        robot_z = self.z_min + ny * (self.z_max - self.z_min)
-
-        # Calculate brush offset
-        # active_brush_index is 0, 1, 2, or 3
-        # brush_offset_mm is the distance between brushes
+        # Compensate for brush position (subtract offset)
         total_offset = self.active_brush_index * self.brush_offset_mm
+        robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
 
-        # Apply offset to robot_y
-        # If SVG X (nx) increases -> robot_y decreases (moves from y_max towards y_min)
-        # A positive offset means the brush is further along the Y axis (e.g. to the right)
-        # So, to compensate and draw in the same SVG location, the robot's centerline
-        # needs to shift "left" (towards y_min, or more negative if y_max is positive, or less positive if y_max is positive).
-        # This means subtracting the offset.
-        robot_y = (self.y_max - nx * (self.y_max - self.y_min)) - total_offset
-
-        # Finally, compute x from z
         robot_x = self.x_from_z(robot_z)
         return (robot_x, robot_y, robot_z)
+    
+    # def map_svg_to_robot(self, svg_x, svg_y):
+    #     """
+    #     Convert (svg_x, svg_y) in [0..svg_width, 0..svg_height]
+    #     into (robot_x, robot_y, robot_z).
+
+    #     Here we flip the vertical axis so that svg_y=0 corresponds
+    #     to z_max (top) and svg_y=svg_height corresponds to z_min (bottom).
+    #     """
+    #     nx = svg_x / self.svg_width   # 0..1 (left to right)
+    #     ny = svg_y / self.svg_height  # 0..1 (top to bottom)
+
+    #     # # FLIP the vertical axis for z:
+    #     # robot_z = self.z_max - ny * (self.z_max - self.z_min)
+    #     # robot_y = self.y_min + nx * (self.y_max - self.y_min)
+
+    #     # flipped
+    #     robot_z = self.z_min + ny * (self.z_max - self.z_min)
+
+    #     # Calculate brush offset
+    #     # active_brush_index is 0, 1, 2, or 3
+    #     # brush_offset_mm is the distance between brushes
+    #     total_offset = self.active_brush_index * self.brush_offset_mm
+
+    #     # Apply offset to robot_y
+    #     # If SVG X (nx) increases -> robot_y decreases (moves from y_max towards y_min)
+    #     # A positive offset means the brush is further along the Y axis (e.g. to the right)
+    #     # So, to compensate and draw in the same SVG location, the robot's centerline
+    #     # needs to shift "left" (towards y_min, or more negative if y_max is positive, or less positive if y_max is positive).
+    #     # This means subtracting the offset.
+    #     robot_y = (self.y_max - nx * (self.y_max - self.y_min)) - total_offset
+
+    #     # Finally, compute x from z
+    #     robot_x = self.x_from_z(robot_z)
+    #     return (robot_x, robot_y, robot_z)
     # --------------
     # TOP-LEVEL DRAW
     # --------------
-    def draw_next_stroke(self, count=1, speed=STROKE_SPEED):
+    def draw_next_stroke(self, count=1, speed=None):
             """
             Draw *count* successive SVG paths (default = 1) and bump
             self.stroke_index accordingly.  Stops early if we run out.
@@ -805,7 +823,7 @@ def interactive(address, *args):
         elif sub_cmd == 'next':
             # E.g. /macbook svg next
             controller.osc_client.send_message("/listen", 0)
-            controller.draw_next_stroke(speed=STROKE_SPEED)
+            controller.draw_next_stroke()
         elif sub_cmd == 'goto':             # /macbook svg goto 45
             idx = int(max_msg[2])
             if 0 <= idx < len(controller.svg_strokes):
