@@ -51,10 +51,10 @@ class XArmController:
 
         # Canvas corners must always stay in this order: top_left, top_right, bottom_left, bottom_right
         self.canvas_corners = [
-            [400,  200, 780],  # top_left
-            [400, -200, 780],  # top_right
-            [400,  200, 100],  # bottom_left
-            [400, -200, 100]   # bottom_right
+            [467,  151, 594],  # top_left
+            [458, -124, 594],  # top_right
+            [470,  140, 196],  # bottom_left
+            [461, -140, 196]   # bottom_right
         ]
         self.calculate_scaling_factors()
         self.calculate_canvas_bounds()
