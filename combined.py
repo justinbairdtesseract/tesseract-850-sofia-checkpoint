@@ -406,7 +406,7 @@ class XArmController:
     # ------------------------------------------------------------------
     #  FULL-FEATURE, AUDIO-RESPONSIVE  draw_svg_stroke
     # ------------------------------------------------------------------
-    def draw_svg_stroke(self, path_data: str, speed: int | None = None):
+    def draw_svg_stroke(self, path_data, speed=None):
         """
         Draw one SVG <path> using live-audio modifiers.
 
@@ -416,7 +416,7 @@ class XArmController:
             smooth →  5–30 Bézier pts  (self._smooth_steps)
         """
         if speed is None:
-            base_speed = self._speed_mm_s()  # live from audio param
+            base_speed = self._speed_mm_s()
         else:
             base_speed = speed
         # ---------- helpers ----------
