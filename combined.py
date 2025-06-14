@@ -68,8 +68,8 @@ class XArmController:
         self.svg_strokes = []  # Will hold path strings
         self.stroke_index = 0  # Which stroke we’re on
         # Default SVG size (in case not in file):
-        self.svg_width = 600
-        self.svg_height = 600
+        self.svg_width = 768
+        self.svg_height = 1080
         self.safety_margin = 10  # to keep from going out of bounds
         self.bezier_steps = 15   # for smooth curves
 
@@ -662,7 +662,10 @@ class XArmController:
         # needs to shift "left" (towards y_min, or more negative if y_max is positive, or less positive if y_max is positive).
         # This means subtracting the offset.
         # robot_y = (self.y_max - nx * (self.y_max - self.y_min)) - total_offset
-        robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
+        
+        # robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
+
+        robot_y = self.y_min + nx * (self.y_max - self.y_min)
 
 
         # Finally, compute x from z
