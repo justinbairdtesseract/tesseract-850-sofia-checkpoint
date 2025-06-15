@@ -20,7 +20,7 @@ MAXMSP_TO_PORT = 7654
 MAXMSP_FROM_PORT = 7655
 
 MOVE_BETWEEN_SPEED = 400
-STROKE_SPEED = 50
+STROKE_SPEED = 500
 
 face_detection_thread = vision.start_face_mesh('webcam', True)
 # face_detection_thread = vision.start_face_mesh('filepath', True) # if you want to load from file
@@ -28,7 +28,7 @@ face_detection_thread = vision.start_face_mesh('webcam', True)
 class XArmController:
     # AUDIO VARIABLE RANGES
     LOW_SPEED      = 20      # mm / s  when /audio speed = 0
-    HIGH_SPEED     = 200     # mm / s  when /audio speed = 127
+    HIGH_SPEED     = 5000     # mm / s  when /audio speed = 127
     MAX_JITTER_MM  = 3.0     # ± mm  when /audio jitter = 127
     SMOOTH_MIN     = 5       # Bézier subdivisions when /audio smooth = 0
     SMOOTH_MAX     = 30      # Bézier subdivisions when /audio smooth = 127
@@ -51,10 +51,10 @@ class XArmController:
 
         # Canvas corners must always stay in this order: top_left, top_right, bottom_left, bottom_right
         self.canvas_corners = [
-            [467,  151, 594],  # top_left
-            [458, -124, 594],  # top_right
-            [470,  140, 196],  # bottom_left
-            [461, -140, 196]   # bottom_right
+            [460,  150, 590],  # top_left
+            [460, -125, 590],  # top_right
+            [465,  150, 196],  # bottom_left
+            [465, -125, 196]   # bottom_right
         ]
         self.calculate_scaling_factors()
         self.calculate_canvas_bounds()
@@ -79,9 +79,9 @@ class XArmController:
         
         # --- live-audio modifiers (0–127 from Max) ---
         self.audio_params = {
-            'speed':   64,   # default midpoint
+            'speed':   127,   # default midpoint
             'jitter':  0,
-            'smooth':  64,
+            'smooth':  0,
         }
 
 
@@ -616,73 +616,38 @@ class XArmController:
             self.retreat_from_canvas(*last_rb, speed=self._speed_mm_s())
 
 
-    # def map_svg_to_robot(self, svg_x, svg_y):
-    #     """
-    #     Convert (svg_x, svg_y) in [0..svg_width, 0..svg_height]
-    #     into (robot_x, robot_y, robot_z).
+    def map_svg_to_robot(self, svg_x, svg_y):
+        """
+        Convert (svg_x, svg_y) in [0..svg_width, 0..svg_height]
+        into (robot_x, robot_y, robot_z).
 
-    #     Here we flip the vertical axis so that svg_y=0 corresponds
-    #     to z_max (top) and svg_y=svg_height corresponds to z_min (bottom).
-    #     """
-    #     nx = svg_x / self.svg_width   # 0..1 (left to right)
-    #     ny = svg_y / self.svg_height  # 0..1 (top to bottom)
+        Here we flip the vertical axis so that svg_y=0 corresponds
+        to z_max (top) and svg_y=svg_height corresponds to z_min (bottom).
+        """
+        nx = svg_x / self.svg_width   # 0..1 (left to right)
+        ny = svg_y / self.svg_height  # 0..1 (top to bottom)
 
-    #     # # FLIP the vertical axis for z:
-    #     # robot_z = self.z_max - ny * (self.z_max - self.z_min)
-    #     # robot_y = self.y_min + nx * (self.y_max - self.y_min)
+         # # FLIP the vertical axis for z:
+         # robot_z = self.z_max - ny * (self.z_max - self.z_min)
+         # robot_y = self.y_min + nx * (self.y_max - self.y_min)
 
-    #     # flipped
-    #     # robot_z = self.z_min + ny * (self.z_max - self.z_min)
-    #     robot_z = self.z_max - ny * (self.z_max - self.z_min)
+         # flipped
+         # robot_z = self.z_min + ny * (self.z_max - self.z_min)
+        robot_z = self.z_max - ny * (self.z_max - self.z_min)
 
-    #     total_offset = self.active_brush_index * self.brush_offset_mm
+        total_offset = self.active_brush_index * self.brush_offset_mm
         
     #     # robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
 
-    #     robot_y = self.y_min + nx * (self.y_max - self.y_min)
+        robot_y = self.y_min + nx * (self.y_max - self.y_min)
 
 
-    #     # Finally, compute x from z
-    #     robot_x = self.x_from_z(robot_z)
-    #     return (robot_x, robot_y, robot_z)
-    
-    
-    def map_svg_to_robot(self, svg_x, svg_y):
-        """
-        Convert an SVG point (svg_x, svg_y) into robot-space (x, y, z).
-
-        ─────────────────────────────────────────────────────────────
-        • Horizontally mirrors the drawing (fixes left↔right).
-        • Vertically mirrors the drawing (fixes top↔bottom).        ← new
-        • Compensates for a 4-brush head arranged symmetrically
-        about the tool centre line:
-
-            brush index : 0     1     2     3
-            y-offset    : –37.5 –12.5 +12.5 +37.5 mm
-
-        (Assumes brush_offset_mm = 25.)
-        """
-        # 1 ─── normalise SVG coords and flip both axes
-        nx = 1.0 - (svg_x / self.svg_width)   # mirror left↔right
-        ny = 1.0 - (svg_y / self.svg_height)  # mirror top↔bottom
-
-        # 2 ─── map vertical position to robot Z
-        #      SVG top (ny=0 after flip)  → z_min   (bottom of canvas)
-        #      SVG bottom (ny=1)          → z_max   (top of canvas)
-        robot_z = self.z_max - ny * (self.z_max - self.z_min)
-
-        # 3 ─── map horizontal position to robot Y
-        base_y = self.y_min + nx * (self.y_max - self.y_min)
-
-        centred_idx  = self.active_brush_index - 1.5          # −1.5 … +1.5
-        total_offset = centred_idx * self.brush_offset_mm     # ±37.5 mm
-        robot_y      = base_y + total_offset
-
-        # 4 ─── derive robot X from Z (plane equation)
+         # Finally, compute x from z
         robot_x = self.x_from_z(robot_z)
-
-        return robot_x, robot_y, robot_z
-
+        return (robot_x, robot_y, robot_z)
+    
+    
+   
 
         
     
