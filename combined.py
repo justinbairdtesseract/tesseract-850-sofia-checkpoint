@@ -428,11 +428,17 @@ class XArmController:
                 yield cmd, [float(n) for n in re.findall(num_pat, params)]
 
         def clamp(y, z):
-            """Keep Y/Z inside canvas, return (x,y,z)."""
-            y = min(max(y, self.y_min + self.safety_margin),
-                    self.y_max - self.safety_margin)
+            offset = self.active_brush_index * self.brush_offset_mm
+
+            # Canvas band **shifted** by the same offset
+            y_lower = self.y_min + self.safety_margin - offset
+            y_upper = self.y_max - self.safety_margin - offset
+
+            y = min(max(y, y_lower), y_upper)
+
             z = min(max(z, self.z_min + self.safety_margin),
                     self.z_max - self.safety_margin)
+
             return self.x_from_z(z), y, z
         # --------------------------------
 
@@ -637,9 +643,9 @@ class XArmController:
 
         total_offset = self.active_brush_index * self.brush_offset_mm
         
-    #     # robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
+        robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
 
-        robot_y = self.y_min + nx * (self.y_max - self.y_min)
+        # robot_y = self.y_min + nx * (self.y_max - self.y_min)
 
 
          # Finally, compute x from z
