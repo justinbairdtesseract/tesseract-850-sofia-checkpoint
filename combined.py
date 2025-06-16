@@ -431,8 +431,8 @@ class XArmController:
             offset = self.active_brush_index * self.brush_offset_mm
 
             # Canvas band **shifted** by the same offset
-            y_lower = self.y_min + self.safety_margin - offset
-            y_upper = self.y_max - self.safety_margin - offset
+            y_lower = self.y_min + self.safety_margin + offset
+            y_upper = self.y_max - self.safety_margin + offset
 
             y = min(max(y, y_lower), y_upper)
 
@@ -643,7 +643,7 @@ class XArmController:
 
         total_offset = self.active_brush_index * self.brush_offset_mm
         
-        robot_y = self.y_min + nx * (self.y_max - self.y_min) - total_offset
+        robot_y = self.y_min + nx * (self.y_max - self.y_min) + total_offset
 
         # robot_y = self.y_min + nx * (self.y_max - self.y_min)
 
