@@ -507,7 +507,7 @@ class XArmController:
                     rx, ry, rz = clamp(ry, rz)
 
                     self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                        pitch=-90, yaw=0, speed=draw_spd, wait=False)
+                                        pitch=-90, yaw=0, speed=draw_spd, wait=True)
                     last_rb = (rx, ry, rz)
                 last_ctl = None
 
@@ -538,7 +538,7 @@ class XArmController:
                             rz += random.uniform(-jitter, jitter)
                         rx, ry, rz = clamp(ry, rz)
                         self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                            pitch=-90, yaw=0, speed=draw_spd, wait=False)
+                                            pitch=-90, yaw=0, speed=draw_spd, wait=True)
                         last_rb = (rx, ry, rz)
                     cur, last_ctl = (x, y), (cx, cy)
 
@@ -573,7 +573,7 @@ class XArmController:
                             rz += random.uniform(-jitter, jitter)
                         rx, ry, rz = clamp(ry, rz)
                         self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                            pitch=-90, yaw=0, speed=draw_spd, wait=False)
+                                            pitch=-90, yaw=0, speed=draw_spd, wait=True)
                         last_rb = (rx, ry, rz)
                     cur, last_ctl = (x, y), (c2x, c2y)
 
@@ -591,7 +591,7 @@ class XArmController:
                         rz += random.uniform(-jitter, jitter)
                     rx, ry, rz = clamp(ry, rz)
                     self.arm.set_position(x=rx, y=ry, z=rz, roll=-180,
-                                        pitch=-90, yaw=0, speed=draw_spd, wait=False)
+                                        pitch=-90, yaw=0, speed=draw_spd, wait=True)
                     last_rb = (rx, ry, rz)
                 last_ctl = None
 
