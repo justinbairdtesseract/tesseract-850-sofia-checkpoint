@@ -1006,6 +1006,17 @@ class XArmController:
         # We can refine the scaling later if needed (e.g., non-linear)
         return self.audio_params['stipple'] / 127.0
 
+    def get_current_arm_position(self):
+        """Gets the current arm position and returns x, y, z coordinates."""
+        code, position = self.arm.get_position()
+        if code == 0:
+            return position[0], position[1], position[2]
+        else:
+            print(f"Error getting arm position: Code {code}")
+            # Potentially send an OSC error message back
+            self.osc_client.send_message("/arm/error", f"get_position_failed_code_{code}")
+            return None, None, None
+
 
 # Global controller instance, to be initialized in main
 controller = None
@@ -1161,6 +1172,13 @@ def interactive(address, *args):
             print(f"Active brush index set to {brush_idx}")
         else:
             print(f"Invalid brush index: {brush_idx}. Must be between 0 and 3.")
+
+    elif cmd == 'get_position':
+        x, y, z = controller.get_current_arm_position()
+        if x is not None: # If no error getting position
+            controller.osc_client.send_message("/arm/current_position", [float(x), float(y), float(z)])
+            print(f"Sent current position: x={x}, y={y}, z={z}")
+        # If there was an error, get_current_arm_position already sent an error OSC msg
             
     else:
         print("Unrecognized OSC message:", max_msg)
