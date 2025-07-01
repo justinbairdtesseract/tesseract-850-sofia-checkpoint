@@ -533,67 +533,6 @@ class XArmController:
                     start_rb = last_rb = (rx, ry, rz)
                 last_ctl = None
 
-            # Helper function for stippling a segment (defined inside draw_svg_stroke)
-            # It uses draw_spd, stipple_level, jitter, clamp from the outer scope.
-            def stipple_segment_runner(p_start_rb, p_end_rb, speed, current_stipple_level):
-                dist = np.linalg.norm(np.array(p_end_rb)[:2] - np.array(p_start_rb)[:2]) # Consider XY distance for stipple density
-
-                # If start and end Z are different, we might be on a slope. For now, stipple taps to target Z.
-                # A more advanced version could interpolate Z for each tap.
-                target_z_for_tap = p_end_rb[2]
-
-                if dist < 0.5: # too short to stipple effectively
-                    # Just move to the end point, ensuring correct pen state
-                    # If it was stippling, it's already lifted. Move to above target, then down.
-                    if getattr(stipple_segment_runner, 'was_stippling_before', False):
-                        self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                              roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap,
-                                          roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    # Lift after the tap for consistency if we are in stipple mode overall
-                    self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                          roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    return (p_end_rb[0], p_end_rb[1], target_z_for_tap + self.STIPPLE_LIFT_MM)
-
-                # Modulate segment length by stipple level: higher level = shorter segments (more dots)
-                # Ensure stipple_level is not too close to 0 to avoid division by zero or extremely large segments.
-                # Effective stipple level for calculation, min 0.01 to prevent division by zero.
-                calc_stipple_level = max(0.01, current_stipple_level)
-                # More stipple = shorter segments. Range from STIPPLE_BASE_SEGMENT_MM down to e.g. 1mm
-                stipple_length_factor = (1.0 - calc_stipple_level * 0.8) # Max reduction of 80%
-                current_segment_len = max(1.0, self.STIPPLE_BASE_SEGMENT_MM * stipple_length_factor)
-
-                num_dots = max(1, int(round(dist / current_segment_len)))
-
-                final_rb_pos = p_start_rb
-
-                # Ensure arm is at start_rb (lifted) before starting dots
-                self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1], z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
-                                      roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-
-                for i_dot in range(num_dots):
-                    t_dot = (i_dot + 1) / num_dots
-
-                    # Interpolate X, Y for the tap position
-                    next_tap_x = p_start_rb[0] + t_dot * (p_end_rb[0] - p_start_rb[0])
-                    next_tap_y = p_start_rb[1] + t_dot * (p_end_rb[1] - p_start_rb[1])
-                    # For Z, we use the target_z_for_tap (which is p_end_rb[2])
-                    # A more advanced version could interpolate Z along the segment if p_start_rb[2] != p_end_rb[2]
-
-                    # Move to just above the point
-                    self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                          roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    # Tap down
-                    self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap,
-                                          roll=-180, pitch=-90, yaw=0, speed=speed / 1.5, wait=True) # Slower tap
-                    # Lift up
-                    self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                          roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-                    final_rb_pos = (next_tap_x, next_tap_y, target_z_for_tap + self.STIPPLE_LIFT_MM)
-
-                setattr(stipple_segment_runner, 'was_stippling_before', True)
-                return final_rb_pos
-
             # ========== LINE / H / V ==========
             elif op in ('l', 'h', 'v'):
                 raw_segs = [] # holds (dx,dy) or (abs_x, abs_y) based on op type for this L/H/V sequence
@@ -644,17 +583,17 @@ class XArmController:
 
                     if stipple_level > self.STIPPLE_THRESHOLD:
                         # Ensure pen is lifted before starting stipple segment if it was drawing continuously
-                        if pen_down and not getattr(stipple_segment_runner, 'was_stippling_before', False):
+                        if pen_down and not getattr(self, '_stipple_was_active', False):
                              # Lift from the current Z of segment_start_rb
                              self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2] + self.STIPPLE_LIFT_MM,
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                              segment_start_rb = (segment_start_rb[0], segment_start_rb[1], segment_start_rb[2] + self.STIPPLE_LIFT_MM)
 
-                        last_rb = stipple_segment_runner(segment_start_rb, segment_end_rb, draw_spd, stipple_level)
-                        # stipple_segment_runner already sets its own 'was_stippling_before' to True
+                        last_rb = self._stipple_segment_runner(segment_start_rb, segment_end_rb, draw_spd, stipple_level)
+                        # _stipple_segment_runner now sets 'self._stipple_was_active' to True internally
                     else:
                         # If previous segment was stippling, need to move to start of continuous line and lower pen
-                        if getattr(stipple_segment_runner, 'was_stippling_before', False):
+                        if getattr(self, '_stipple_was_active', False):
                             # segment_start_rb is already lifted from previous stipple. Move to start XY, then lower.
                             self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2],
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True) # move to XY (still lifted)
@@ -665,7 +604,7 @@ class XArmController:
                         self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2], roll=-180,
                                             pitch=-90, yaw=0, speed=draw_spd, wait=False)
                         last_rb = segment_end_rb
-                        setattr(stipple_segment_runner, 'was_stippling_before', False)
+                        setattr(self, '_stipple_was_active', False)
 
                     segment_start_rb = last_rb # The end of the last segment is the start of the new one
 
@@ -718,7 +657,7 @@ class XArmController:
 
                         if stipple_level > self.STIPPLE_THRESHOLD:
                             # Ensure pen is lifted if transitioning from continuous draw or previous stipple segment ended low
-                            if k_pt == 0 and pen_down and not getattr(stipple_segment_runner, 'was_stippling_before', False):
+                            if k_pt == 0 and pen_down and not getattr(self, '_stipple_was_active', False):
                                 self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2] + self.STIPPLE_LIFT_MM,
                                                       roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                                 segment_start_rb = (segment_start_rb[0], segment_start_rb[1], segment_start_rb[2] + self.STIPPLE_LIFT_MM)
@@ -734,10 +673,10 @@ class XArmController:
                             self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2] + self.STIPPLE_LIFT_MM,
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                             last_rb = (segment_end_rb[0], segment_end_rb[1], segment_end_rb[2] + self.STIPPLE_LIFT_MM)
-                            setattr(stipple_segment_runner, 'was_stippling_before', True)
+                            setattr(self, '_stipple_was_active', True)
                         else:
                             # Continuous drawing for curve segment
-                            if k_pt == 0 and getattr(stipple_segment_runner, 'was_stippling_before', False): # Transition from stipple to continuous
+                            if k_pt == 0 and getattr(self, '_stipple_was_active', False): # Transition from stipple to continuous
                                 # segment_start_rb is already lifted. Move to its XY, then lower to segment_end_rb's Z.
                                 self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2], # XY of start (lifted)
                                                       roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
@@ -747,7 +686,7 @@ class XArmController:
                             self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2], roll=-180,
                                                 pitch=-90, yaw=0, speed=draw_spd, wait=False)
                             last_rb = segment_end_rb
-                            setattr(stipple_segment_runner, 'was_stippling_before', False)
+                            setattr(self, '_stipple_was_active', False)
 
                         segment_start_rb = last_rb # for the next iteration or if this is the last point
 
@@ -798,7 +737,7 @@ class XArmController:
                         segment_end_rb = (rx_target, ry_target, rz_target)
 
                         if stipple_level > self.STIPPLE_THRESHOLD:
-                            if k_pt == 0 and pen_down and not getattr(stipple_segment_runner, 'was_stippling_before', False):
+                            if k_pt == 0 and pen_down and not getattr(self, '_stipple_was_active', False):
                                 self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2] + self.STIPPLE_LIFT_MM,
                                                       roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                                 segment_start_rb = (segment_start_rb[0], segment_start_rb[1], segment_start_rb[2] + self.STIPPLE_LIFT_MM)
@@ -810,9 +749,9 @@ class XArmController:
                             self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2] + self.STIPPLE_LIFT_MM,
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                             last_rb = (segment_end_rb[0], segment_end_rb[1], segment_end_rb[2] + self.STIPPLE_LIFT_MM)
-                            setattr(stipple_segment_runner, 'was_stippling_before', True)
+                            setattr(self, '_stipple_was_active', True)
                         else:
-                            if k_pt == 0 and getattr(stipple_segment_runner, 'was_stippling_before', False):
+                            if k_pt == 0 and getattr(self, '_stipple_was_active', False):
                                 self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2],
                                                       roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                                 self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_end_rb[2],
@@ -821,7 +760,7 @@ class XArmController:
                             self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2], roll=-180,
                                                 pitch=-90, yaw=0, speed=draw_spd, wait=False)
                             last_rb = segment_end_rb
-                            setattr(stipple_segment_runner, 'was_stippling_before', False)
+                            setattr(self, '_stipple_was_active', False)
 
                         segment_start_rb = last_rb
 
@@ -848,15 +787,15 @@ class XArmController:
 
                     if stipple_level > self.STIPPLE_THRESHOLD:
                         # Ensure pen is lifted before starting stipple segment
-                        if pen_down and not getattr(stipple_segment_runner, 'was_stippling_before', False):
+                        if pen_down and not getattr(self, '_stipple_was_active', False):
                              self.arm.set_position(x=last_rb[0], y=last_rb[1], z=last_rb[2] + self.STIPPLE_LIFT_MM,
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                              last_rb = (last_rb[0], last_rb[1], last_rb[2] + self.STIPPLE_LIFT_MM) # Update last_rb to be lifted
 
-                        last_rb = stipple_segment_runner(last_rb, segment_end_rb, draw_spd, stipple_level)
+                        last_rb = self._stipple_segment_runner(last_rb, segment_end_rb, draw_spd, stipple_level)
                     else:
                         # If previous segment was stippling, need to move to start of continuous line and lower pen
-                        if getattr(stipple_segment_runner, 'was_stippling_before', False):
+                        if getattr(self, '_stipple_was_active', False):
                             self.arm.set_position(x=last_rb[0], y=last_rb[1], z=last_rb[2], # XY of current (lifted), Z of current (lifted)
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                             self.arm.set_position(x=last_rb[0], y=last_rb[1], z=segment_end_rb[2], # Lower to target Z for drawing
@@ -865,7 +804,7 @@ class XArmController:
                         self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2], roll=-180,
                                             pitch=-90, yaw=0, speed=draw_spd, wait=True) # Arcs are usually single moves
                         last_rb = segment_end_rb
-                        setattr(stipple_segment_runner, 'was_stippling_before', False)
+                        setattr(self, '_stipple_was_active', False)
                 last_ctl = None
 
             # ========== CLOSE PATH (Z/z) ==========
@@ -878,19 +817,19 @@ class XArmController:
 
                 if stipple_level > self.STIPPLE_THRESHOLD:
                     # Ensure pen is lifted before stippling the closing segment
-                    if pen_down and not getattr(stipple_segment_runner, 'was_stippling_before', False):
+                    if pen_down and not getattr(self, '_stipple_was_active', False):
                         self.arm.set_position(x=last_rb[0], y=last_rb[1], z=last_rb[2] + self.STIPPLE_LIFT_MM,
                                               roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                         last_rb = (last_rb[0], last_rb[1], last_rb[2] + self.STIPPLE_LIFT_MM)
 
-                    closed_path_final_rb = stipple_segment_runner(last_rb, segment_end_rb, draw_spd, stipple_level)
+                    closed_path_final_rb = self._stipple_segment_runner(last_rb, segment_end_rb, draw_spd, stipple_level)
                     # After stippling, arm is lifted at segment_end_rb (which is start_rb)
                     # For Z, we want to ensure it's at the drawing depth of start_rb if it were to continue,
                     # but retreat will handle the final lift. So, keep it lifted is fine.
                     last_rb = closed_path_final_rb
                 else:
                     # Continuous line for Z
-                    if getattr(stipple_segment_runner, 'was_stippling_before', False): # Transition from stipple
+                    if getattr(self, '_stipple_was_active', False): # Transition from stipple
                         self.arm.set_position(x=last_rb[0], y=last_rb[1], z=last_rb[2], # XY of current (lifted)
                                               roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                         self.arm.set_position(x=last_rb[0], y=last_rb[1], z=segment_end_rb[2], # Lower to target Z
@@ -899,7 +838,7 @@ class XArmController:
                     self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2], roll=-180,
                                         pitch=-90, yaw=0, speed=draw_spd, wait=True) # wait=True for Z
                     last_rb = segment_end_rb
-                    setattr(stipple_segment_runner, 'was_stippling_before', False)
+                    setattr(self, '_stipple_was_active', False)
 
                 cur = start_svg # SVG current point resets to start of sub-path
                 last_ctl = None
@@ -911,13 +850,13 @@ class XArmController:
         # retreat_from_canvas expects the Z at drawing depth for its initial lift calculation.
         if pen_down and last_rb:
             final_z_for_retreat = last_rb[2]
-            if getattr(stipple_segment_runner, 'was_stippling_before', False):
+            if getattr(self, '_stipple_was_active', False):
                 final_z_for_retreat = last_rb[2] - self.STIPPLE_LIFT_MM # Adjust Z to drawing depth
 
             self.retreat_from_canvas(last_rb[0], last_rb[1], final_z_for_retreat, speed=self._speed_mm_s())
             # Clear the stippling state for the next independent stroke
-            if hasattr(stipple_segment_runner, 'was_stippling_before'):
-                delattr(stipple_segment_runner, 'was_stippling_before')
+            if hasattr(self, '_stipple_was_active'): # Check attribute on self
+                delattr(self, '_stipple_was_active') # Delete attribute from self
 
 
     def map_svg_to_robot(self, svg_x, svg_y):
@@ -1005,6 +944,47 @@ class XArmController:
         """0–127 → 0.0 … 1.0 (stipple intensity/probability)"""
         # We can refine the scaling later if needed (e.g., non-linear)
         return self.audio_params['stipple'] / 127.0
+
+    def _stipple_segment_runner(self, p_start_rb, p_end_rb, speed, current_stipple_level):
+        # Helper function for stippling a segment
+        # It uses speed, current_stipple_level from arguments, and self for arm control and constants.
+        dist = np.linalg.norm(np.array(p_end_rb)[:2] - np.array(p_start_rb)[:2]) # Consider XY distance for stipple density
+        target_z_for_tap = p_end_rb[2]
+
+        if dist < 0.5: # too short to stipple effectively
+            if getattr(self, '_stipple_was_active', False): # Check a state on self
+                self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap + self.STIPPLE_LIFT_MM,
+                                      roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap,
+                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap + self.STIPPLE_LIFT_MM,
+                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            return (p_end_rb[0], p_end_rb[1], target_z_for_tap + self.STIPPLE_LIFT_MM)
+
+        calc_stipple_level = max(0.01, current_stipple_level)
+        stipple_length_factor = (1.0 - calc_stipple_level * 0.8)
+        current_segment_len = max(1.0, self.STIPPLE_BASE_SEGMENT_MM * stipple_length_factor)
+        num_dots = max(1, int(round(dist / current_segment_len)))
+        final_rb_pos = p_start_rb
+
+        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1], z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
+                              roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+
+        for i_dot in range(num_dots):
+            t_dot = (i_dot + 1) / num_dots
+            next_tap_x = p_start_rb[0] + t_dot * (p_end_rb[0] - p_start_rb[0])
+            next_tap_y = p_start_rb[1] + t_dot * (p_end_rb[1] - p_start_rb[1])
+
+            self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap + self.STIPPLE_LIFT_MM,
+                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap,
+                                  roll=-180, pitch=-90, yaw=0, speed=speed / 1.5, wait=True)
+            self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap + self.STIPPLE_LIFT_MM,
+                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+            final_rb_pos = (next_tap_x, next_tap_y, target_z_for_tap + self.STIPPLE_LIFT_MM)
+
+        setattr(self, '_stipple_was_active', True) # Set a state on self
+        return final_rb_pos
 
     def get_current_arm_position(self):
         """Gets the current arm position and returns x, y, z coordinates."""
