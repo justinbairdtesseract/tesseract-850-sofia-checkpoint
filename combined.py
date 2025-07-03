@@ -36,7 +36,7 @@ class XArmController:
 
     STIPPLE_THRESHOLD = 0.05  # Min stipple_level to activate effect
     STIPPLE_BASE_SEGMENT_MM = 5.0  # Base length of a stipple segment/gap in mm
-    STIPPLE_LIFT_MM = 2.0          # How much to lift between stipples
+    STIPPLE_LIFT_MM = 10.0          # How much to lift between stipples
 
     
     def __init__(self, ip_address, osc_ip=MAC_IP, osc_port=MAXMSP_TO_PORT):
