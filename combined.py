@@ -950,79 +950,78 @@ class XArmController:
 
     def _stipple_segment_runner(self, p_start_rb, p_end_rb, speed, current_stipple_level):
         """
-        Draw a dotted (stipple) segment between two robot-space points
-        that lie at full drawing depth (Z).  Returns the final lifted
-        position so the caller knows where the arm ends up.
+        Draw a stippled (dotted) segment from p_start_rb → p_end_rb.
+        Returns the final lifted XYZ so the caller knows where the arm ends up.
+        Both input points are at drawing depth (pen touching the canvas).
         """
         # ------------------------------------------------------------
-        # 1)  Distance measured in the canvas plane  (ΔY / ΔZ)
+        # 1)  How long is this segment?   (full 3-D distance)
         # ------------------------------------------------------------
+        dx = p_end_rb[0] - p_start_rb[0]
         dy = p_end_rb[1] - p_start_rb[1]
         dz = p_end_rb[2] - p_start_rb[2]
-        dist = math.hypot(dy, dz)          # distance in millimetres
+        dist = math.sqrt(dx*dx + dy*dy + dz*dz)
 
-        target_z = p_start_rb[2]           # drawing depth for taps
-
-        # Very short: just tap once and lift
+        # Very tiny – just tap once and lift.
         if dist < 0.5:
+            self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1], z=p_start_rb[2],
+                                  roll=-180, pitch=-90, yaw=0,
+                                  speed=speed/1.5, wait=True)
             self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                                   z=target_z, roll=-180, pitch=-90, yaw=0,
-                                   speed=speed / 1.5, wait=True)
-            self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                                   z=target_z + self.STIPPLE_LIFT_MM,
-                                   roll=-180, pitch=-90, yaw=0,
-                                   speed=speed, wait=True)
+                                  z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
+                                  roll=-180, pitch=-90, yaw=0,
+                                  speed=speed, wait=True)
             setattr(self, '_stipple_was_active', True)
-            return (p_start_rb[0], p_start_rb[1], target_z + self.STIPPLE_LIFT_MM)
+            return (p_start_rb[0], p_start_rb[1], p_start_rb[2] + self.STIPPLE_LIFT_MM)
 
         # ------------------------------------------------------------
-        # 2)  Dot spacing derived from audio “stipple” value
+        # 2)  Decide dot spacing from audio “stipple” (0 … 1)
         # ------------------------------------------------------------
-        lvl = max(0.01, current_stipple_level)          # 0.01 … 1
+        lvl = max(0.01, current_stipple_level)                 # avoid zero
         seg_len = max(1.0, self.STIPPLE_BASE_SEGMENT_MM * (1.0 - 0.8 * lvl))
-        num_dots = max(2, int(math.ceil(dist / seg_len)))   # guarantee ≥2
+        num_dots = max(2, int(math.ceil(dist / seg_len)))      # at least start & end
 
         # ------------------------------------------------------------
-        # 3)  Get above the first point and tap immediately (t = 0)
+        # 3)  Lift above the first point, then tap it (t = 0)
         # ------------------------------------------------------------
         self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                              z=target_z + self.STIPPLE_LIFT_MM,
+                              z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
                               roll=-180, pitch=-90, yaw=0,
                               speed=speed, wait=True)
 
         # first tap
-        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                              z=target_z,
+        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1], z=p_start_rb[2],
                               roll=-180, pitch=-90, yaw=0,
-                              speed=speed / 1.5, wait=True)
+                              speed=speed/1.5, wait=True)
         self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                              z=target_z + self.STIPPLE_LIFT_MM,
+                              z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
                               roll=-180, pitch=-90, yaw=0,
                               speed=speed, wait=True)
 
         # ------------------------------------------------------------
-        # 4)  Remaining dots, t = 1 … num_dots-1  (inclusive of end)
+        # 4)  Remaining dots:  i = 1 … num_dots-1   (includes end-point)
         # ------------------------------------------------------------
-        for i_dot in range(1, num_dots):
-            t = i_dot / (num_dots - 1)           # 0 < t ≤ 1
-            nx = p_start_rb[0] + t * (p_end_rb[0] - p_start_rb[0])
-            ny = p_start_rb[1] + t * (p_end_rb[1] - p_start_rb[1])
+        for i in range(1, num_dots):
+            t = i / (num_dots - 1)            # 0 < t ≤ 1
+            nx = p_start_rb[0] + t * dx       # interpolate X, Y, Z
+            ny = p_start_rb[1] + t * dy
+            nz = p_start_rb[2] + t * dz
 
-            # move-above
-            self.arm.set_position(x=nx, y=ny, z=target_z + self.STIPPLE_LIFT_MM,
+            # move above the dot
+            self.arm.set_position(x=nx, y=ny, z=nz + self.STIPPLE_LIFT_MM,
                                   roll=-180, pitch=-90, yaw=0,
                                   speed=speed, wait=True)
             # tap
-            self.arm.set_position(x=nx, y=ny, z=target_z,
+            self.arm.set_position(x=nx, y=ny, z=nz,
                                   roll=-180, pitch=-90, yaw=0,
-                                  speed=speed / 1.5, wait=True)
+                                  speed=speed/1.5, wait=True)
             # lift
-            self.arm.set_position(x=nx, y=ny, z=target_z + self.STIPPLE_LIFT_MM,
+            self.arm.set_position(x=nx, y=ny, z=nz + self.STIPPLE_LIFT_MM,
                                   roll=-180, pitch=-90, yaw=0,
                                   speed=speed, wait=True)
 
         setattr(self, '_stipple_was_active', True)
-        return (p_end_rb[0], p_end_rb[1], target_z + self.STIPPLE_LIFT_MM)
+        return (p_end_rb[0], p_end_rb[1], p_end_rb[2] + self.STIPPLE_LIFT_MM)
 
 
     def get_current_arm_position(self):
