@@ -34,7 +34,7 @@ class XArmController:
     SMOOTH_MIN     = 5      # Bézier subdivisions when /audio smooth = 0
     SMOOTH_MAX     = 30      # Bézier subdivisions when /audio smooth = 127
 
-    STIPPLE_THRESHOLD = 0.05  # Min stipple_level to activate effect
+    STIPPLE_THRESHOLD = 0.5  # Min stipple_level to activate effect
     STIPPLE_BASE_SEGMENT_MM = 5.0  # Base length of a stipple segment/gap in mm
     STIPPLE_LIFT_MM = 10.0          # How much to lift between stipples
 
