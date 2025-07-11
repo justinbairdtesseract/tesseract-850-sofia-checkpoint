@@ -613,7 +613,7 @@ class XArmController:
 
                 # After all segments in L/H/V command, if not stippling and arm is moving, wait.
                 if not (stipple_level > self.STIPPLE_THRESHOLD) and self.arm.get_is_moving():
-                    self.arm.wait_move()
+                    self.pause_movement()
                 elif stipple_level > self.STIPPLE_THRESHOLD:
                     # If we ended on stippling, ensure the arm is responsive for the next command
                     # (stipple_segment_runner should leave it in a good state, lifted)
@@ -695,7 +695,7 @@ class XArmController:
 
                     # After all points in curve, if not stippling and arm is moving, wait.
                     if not (stipple_level > self.STIPPLE_THRESHOLD) and self.arm.get_is_moving():
-                        self.arm.wait_move()
+                        self.pause_movement()
 
                     cur, last_ctl = (x, y), (cx, cy)
 
@@ -768,7 +768,7 @@ class XArmController:
                         segment_start_rb = last_rb
 
                     if not (stipple_level > self.STIPPLE_THRESHOLD) and self.arm.get_is_moving():
-                        self.arm.wait_move()
+                        self.pause_movement()
 
                     cur, last_ctl = (x, y), (c2x, c2y)
 
