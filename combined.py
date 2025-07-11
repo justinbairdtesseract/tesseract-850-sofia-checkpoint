@@ -949,45 +949,81 @@ class XArmController:
         return self.audio_params['stipple'] / 127.0
 
     def _stipple_segment_runner(self, p_start_rb, p_end_rb, speed, current_stipple_level):
-        # Helper function for stippling a segment
-        # It uses speed, current_stipple_level from arguments, and self for arm control and constants.
-        dist = np.linalg.norm(np.array(p_end_rb)[:2] - np.array(p_start_rb)[:2]) # Consider XY distance for stipple density
-        target_z_for_tap = p_end_rb[2]
+        """
+        Draw a dotted (stipple) segment between two robot-space points
+        that lie at full drawing depth (Z).  Returns the final lifted
+        position so the caller knows where the arm ends up.
+        """
+        # ------------------------------------------------------------
+        # 1)  Distance measured in the canvas plane  (ΔY / ΔZ)
+        # ------------------------------------------------------------
+        dy = p_end_rb[1] - p_start_rb[1]
+        dz = p_end_rb[2] - p_start_rb[2]
+        dist = math.hypot(dy, dz)          # distance in millimetres
 
-        if dist < 0.5: # too short to stipple effectively
-            if getattr(self, '_stipple_was_active', False): # Check a state on self
-                self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                      roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap,
-                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            self.arm.set_position(x=p_end_rb[0], y=p_end_rb[1], z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            return (p_end_rb[0], p_end_rb[1], target_z_for_tap + self.STIPPLE_LIFT_MM)
+        target_z = p_start_rb[2]           # drawing depth for taps
 
-        calc_stipple_level = max(0.01, current_stipple_level)
-        stipple_length_factor = (1.0 - calc_stipple_level * 0.8)
-        current_segment_len = max(1.0, self.STIPPLE_BASE_SEGMENT_MM * stipple_length_factor)
-        num_dots = max(1, int(round(dist / current_segment_len)))
-        final_rb_pos = p_start_rb
+        # Very short: just tap once and lift
+        if dist < 0.5:
+            self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
+                                   z=target_z, roll=-180, pitch=-90, yaw=0,
+                                   speed=speed / 1.5, wait=True)
+            self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
+                                   z=target_z + self.STIPPLE_LIFT_MM,
+                                   roll=-180, pitch=-90, yaw=0,
+                                   speed=speed, wait=True)
+            setattr(self, '_stipple_was_active', True)
+            return (p_start_rb[0], p_start_rb[1], target_z + self.STIPPLE_LIFT_MM)
 
-        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1], z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
-                              roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
+        # ------------------------------------------------------------
+        # 2)  Dot spacing derived from audio “stipple” value
+        # ------------------------------------------------------------
+        lvl = max(0.01, current_stipple_level)          # 0.01 … 1
+        seg_len = max(1.0, self.STIPPLE_BASE_SEGMENT_MM * (1.0 - 0.8 * lvl))
+        num_dots = max(2, int(math.ceil(dist / seg_len)))   # guarantee ≥2
 
-        for i_dot in range(num_dots):
-            t_dot = (i_dot + 1) / num_dots
-            next_tap_x = p_start_rb[0] + t_dot * (p_end_rb[0] - p_start_rb[0])
-            next_tap_y = p_start_rb[1] + t_dot * (p_end_rb[1] - p_start_rb[1])
+        # ------------------------------------------------------------
+        # 3)  Get above the first point and tap immediately (t = 0)
+        # ------------------------------------------------------------
+        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
+                              z=target_z + self.STIPPLE_LIFT_MM,
+                              roll=-180, pitch=-90, yaw=0,
+                              speed=speed, wait=True)
 
-            self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap,
-                                  roll=-180, pitch=-90, yaw=0, speed=speed / 1.5, wait=True)
-            self.arm.set_position(x=next_tap_x, y=next_tap_y, z=target_z_for_tap + self.STIPPLE_LIFT_MM,
-                                  roll=-180, pitch=-90, yaw=0, speed=speed, wait=True)
-            final_rb_pos = (next_tap_x, next_tap_y, target_z_for_tap + self.STIPPLE_LIFT_MM)
+        # first tap
+        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
+                              z=target_z,
+                              roll=-180, pitch=-90, yaw=0,
+                              speed=speed / 1.5, wait=True)
+        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
+                              z=target_z + self.STIPPLE_LIFT_MM,
+                              roll=-180, pitch=-90, yaw=0,
+                              speed=speed, wait=True)
 
-        setattr(self, '_stipple_was_active', True) # Set a state on self
-        return final_rb_pos
+        # ------------------------------------------------------------
+        # 4)  Remaining dots, t = 1 … num_dots-1  (inclusive of end)
+        # ------------------------------------------------------------
+        for i_dot in range(1, num_dots):
+            t = i_dot / (num_dots - 1)           # 0 < t ≤ 1
+            nx = p_start_rb[0] + t * (p_end_rb[0] - p_start_rb[0])
+            ny = p_start_rb[1] + t * (p_end_rb[1] - p_start_rb[1])
+
+            # move-above
+            self.arm.set_position(x=nx, y=ny, z=target_z + self.STIPPLE_LIFT_MM,
+                                  roll=-180, pitch=-90, yaw=0,
+                                  speed=speed, wait=True)
+            # tap
+            self.arm.set_position(x=nx, y=ny, z=target_z,
+                                  roll=-180, pitch=-90, yaw=0,
+                                  speed=speed / 1.5, wait=True)
+            # lift
+            self.arm.set_position(x=nx, y=ny, z=target_z + self.STIPPLE_LIFT_MM,
+                                  roll=-180, pitch=-90, yaw=0,
+                                  speed=speed, wait=True)
+
+        setattr(self, '_stipple_was_active', True)
+        return (p_end_rb[0], p_end_rb[1], target_z + self.STIPPLE_LIFT_MM)
+
 
     def get_current_arm_position(self):
         """Gets the current arm position and returns x, y, z coordinates."""
@@ -1144,7 +1180,7 @@ def interactive(address, *args):
         value = int(max_msg[2])
         if name in controller.audio_params:
             controller.audio_params[name] = max(0, min(127, value))
-            print(f"Audio-param {name} set to {value}")
+            # print(f"Audio-param {name} set to {value}")
         else:
             print("Unknown audio-param", name)
 
