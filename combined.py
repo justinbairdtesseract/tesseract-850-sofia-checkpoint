@@ -1190,6 +1190,24 @@ def interactive(address, *args):
             print(f"Active brush index set to {brush_idx}")
         else:
             print(f"Invalid brush index: {brush_idx}. Must be between 0 and 3.")
+            
+    elif cmd == 'stipple_lift':
+        try:
+            new_lift = float(max_msg[1])
+        except (IndexError, ValueError):
+            print("stipple_lift: need a numeric value")
+            return
+
+        # optional safety clamp – change the limits if you wish
+        if not (0.5 <= new_lift <= 50.0):
+            print(f"stipple_lift {new_lift} mm out of range (0.5–50)")
+            return
+
+        controller.STIPPLE_LIFT_MM = new_lift
+        print(f"Stipple-lift height set to {new_lift:.1f} mm")
+        controller.osc_client.send_message("/stipple/lift", new_lift)
+
+
 
     elif cmd == 'get_position':
         x, y, z = controller.get_current_arm_position()
