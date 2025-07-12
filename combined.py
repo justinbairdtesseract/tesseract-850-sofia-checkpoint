@@ -37,6 +37,10 @@ class XArmController:
     STIPPLE_THRESHOLD = 0.5  # Min stipple_level to activate effect
     STIPPLE_BASE_SEGMENT_MM = 5.0  # Base length of a stipple segment/gap in mm
     STIPPLE_LIFT_MM = 10.0          # How much to lift between stipples
+    
+    STIPPLE_MIN_SEGMENT_MM = 0.3   # allow very tight dots
+    STIPPLE_RANGE_FACTOR   = 0.95  # how much of the base length can disappear
+
 
     
     def __init__(self, ip_address, osc_ip=MAC_IP, osc_port=MAXMSP_TO_PORT):
@@ -978,7 +982,7 @@ class XArmController:
         # 2)  Decide dot spacing from audio “stipple” (0 … 1)
         # ------------------------------------------------------------
         lvl = max(0.01, current_stipple_level)                 # avoid zero
-        seg_len = max(1.0, self.STIPPLE_BASE_SEGMENT_MM * (1.0 - 0.8 * lvl))
+        seg_len = max(self.STIPPLE_MIN_SEGMENT_MM, self.STIPPLE_BASE_SEGMENT_MM * (1.0 - self.STIPPLE_RANGE_FACTOR * (lvl ** 2)))
         num_dots = max(2, int(math.ceil(dist / seg_len)))      # at least start & end
 
         # ------------------------------------------------------------
