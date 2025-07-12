@@ -184,9 +184,9 @@ class XArmController:
         """
         print('retreating')
         # 1) short vertical lift
-        self.arm.set_position(x=x, y=y, z=z + lift,
-                            roll=-180, pitch=-90, yaw=0,
-                            speed=speed, wait=True)
+        # self.arm.set_position(x=x, y=y, z=z + lift,
+        #                     roll=-180, pitch=-90, yaw=0,
+        #                     speed=speed, wait=True)
 
         # 2) slide straight back in X
         retreat_x = x - self.off_canvas_distance
@@ -196,6 +196,19 @@ class XArmController:
 
         self.osc_client.send_message("/arm/movement", "retreating")
         self.osc_client.send_message("/listen", 1)
+
+    def _lift_off_plane(self, x, y, z, speed, dist=None):
+        """
+        Pull the tip away from the canvas by <dist> mm along –x,
+        leaving y / z unchanged.  Returns the new (x, y, z).
+        """
+        if dist is None:
+            dist = self.STIPPLE_LIFT_MM
+        new_x = x - dist           # –x is the normal to your canvas
+        self.arm.set_position(x=new_x, y=y, z=z,
+                            roll=-180, pitch=-90, yaw=0,
+                            speed=speed, wait=True)
+        return new_x, y, z
 
     # --------------
     # BASIC SHAPES
@@ -212,58 +225,64 @@ class XArmController:
 
     def draw_line(self, start, end, speed=100):
         stipple_level = self._stipple_level()
-        draw_spd = speed # Use the provided speed parameter
+        draw_spd      = speed
 
         if stipple_level > self.STIPPLE_THRESHOLD:
-            p_start_rb = np.array(start)
-            p_end_rb = np.array(end)
-            dist = np.linalg.norm(p_end_rb - p_start_rb)
+            p_start_rb = np.array(start, dtype=float)
+            p_end_rb   = np.array(end,   dtype=float)
+            dist       = np.linalg.norm(p_end_rb - p_start_rb)
 
-            if dist < 0.1: # Too short to stipple effectively
-                self.draw_dot(end[0], end[1], end[2], speed=draw_spd) # Just draw a dot at the end
+            if dist < 0.1:                                   # too short – single dot
+                self.draw_dot(*end, speed=draw_spd)
                 return
 
-            # Modulate segment length by stipple level
-            calc_stipple_level = max(0.01, stipple_level)
-            stipple_length_factor = (1.0 - calc_stipple_level * 0.8)
-            current_segment_len = max(1.0, self.STIPPLE_BASE_SEGMENT_MM * stipple_length_factor)
-            num_dots = max(1, int(round(dist / current_segment_len)))
+            # decide number of dots
+            lvl   = max(0.01, stipple_level)
+            seg   = max(1.0, self.STIPPLE_BASE_SEGMENT_MM *
+                        (1.0 - 0.8 * lvl))
+            n_dot = max(1, int(round(dist / seg)))
 
-            # Approach the actual start of the line (drawing depth)
-            self.approach_canvas(p_start_rb[0], p_start_rb[1], p_start_rb[2], speed=draw_spd)
+            # approach first point
+            self.approach_canvas(*p_start_rb, speed=draw_spd)
 
-            # Lift to stipple height before starting dots
-            current_pos_lifted = [p_start_rb[0], p_start_rb[1], p_start_rb[2] + self.STIPPLE_LIFT_MM]
-            self.arm.set_position(x=current_pos_lifted[0], y=current_pos_lifted[1], z=current_pos_lifted[2],
-                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
+            # first lift off-plane
+            prev_x, prev_y, prev_z = self._lift_off_plane(
+                p_start_rb[0], p_start_rb[1], p_start_rb[2], draw_spd)
 
-            for i_dot in range(num_dots):
-                t_dot = (i_dot + 1) / num_dots # Target point for this dot
-                next_tap_target_x = p_start_rb[0] + t_dot * (p_end_rb[0] - p_start_rb[0])
-                next_tap_target_y = p_start_rb[1] + t_dot * (p_end_rb[1] - p_start_rb[1])
-                next_tap_target_z = p_start_rb[2] + t_dot * (p_end_rb[2] - p_start_rb[2]) # Interpolate Z as well
+            # iterate dots
+            for i in range(n_dot):
+                t    = (i + 1) / n_dot
+                nx   = p_start_rb[0] + t * (p_end_rb[0] - p_start_rb[0])
+                ny   = p_start_rb[1] + t * (p_end_rb[1] - p_start_rb[1])
+                nz   = p_start_rb[2] + t * (p_end_rb[2] - p_start_rb[2])
 
-                # Move to above the target tap point (from current_pos_lifted which is already lifted)
-                self.arm.set_position(x=next_tap_target_x, y=next_tap_target_y, z=next_tap_target_z + self.STIPPLE_LIFT_MM,
-                                      roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                # Tap down
-                self.arm.set_position(x=next_tap_target_x, y=next_tap_target_y, z=next_tap_target_z,
-                                      roll=-180, pitch=-90, yaw=0, speed=draw_spd / 1.5, wait=True)
-                # Lift up again to stipple height
-                self.arm.set_position(x=next_tap_target_x, y=next_tap_target_y, z=next_tap_target_z + self.STIPPLE_LIFT_MM,
-                                      roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                current_pos_lifted = [next_tap_target_x, next_tap_target_y, next_tap_target_z + self.STIPPLE_LIFT_MM]
+                # move off-plane to new place
+                self.arm.set_position(x=nx - self.STIPPLE_LIFT_MM,
+                                      y=ny, z=nz,
+                                      roll=-180, pitch=-90, yaw=0,
+                                      speed=draw_spd, wait=True)
 
-            # Retreat from the drawing Z of the *actual last tap position*
-            self.retreat_from_canvas(current_pos_lifted[0], current_pos_lifted[1], current_pos_lifted[2] - self.STIPPLE_LIFT_MM, speed=draw_spd)
+                # tap
+                self.arm.set_position(x=nx, y=ny, z=nz,
+                                      roll=-180, pitch=-90, yaw=0,
+                                      speed=draw_spd/1.5, wait=True)
 
-        else: # Original continuous line drawing
-            self.approach_canvas(*start, speed=draw_spd) # Ends at start[0], start[1], start[2]
-            # self.arm.set_position(x=start[0], y=start[1], z=start[2], # Already at start due to approach_canvas
-            #                       roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-            self.arm.set_position(x=end[0], y=end[1], z=end[2],
-                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
+                # lift off again
+                prev_x, prev_y, prev_z = self._lift_off_plane(
+                    nx, ny, nz, draw_spd)
+
+            # retreat (prev_* is already lifted)
+            self.retreat_from_canvas(prev_x + self.STIPPLE_LIFT_MM,  # undo −x
+                                     prev_y,
+                                     prev_z, speed=draw_spd)
+
+        else:
+            # ordinary continuous line
+            self.approach_canvas(*start, speed=draw_spd)
+            self.arm.set_position(*end, roll=-180, pitch=-90, yaw=0,
+                                  speed=draw_spd, wait=True)
             self.retreat_from_canvas(*end, speed=draw_spd)
+
 
     def draw_random_arcs(self, num_arcs, speed=200, mvacc=1000, circle_scaling_factor=0.25, wait=True):
         for _ in range(num_arcs):
@@ -954,78 +973,51 @@ class XArmController:
 
     def _stipple_segment_runner(self, p_start_rb, p_end_rb, speed, current_stipple_level):
         """
-        Draw a stippled (dotted) segment from p_start_rb → p_end_rb.
-        Returns the final lifted XYZ so the caller knows where the arm ends up.
-        Both input points are at drawing depth (pen touching the canvas).
+        Draw a stippled segment from p_start_rb → p_end_rb, lifting off-plane
+        (−x) between dots.  Returns the final lifted (x,y,z).
         """
-        # ------------------------------------------------------------
-        # 1)  How long is this segment?   (full 3-D distance)
-        # ------------------------------------------------------------
         dx = p_end_rb[0] - p_start_rb[0]
         dy = p_end_rb[1] - p_start_rb[1]
         dz = p_end_rb[2] - p_start_rb[2]
         dist = math.sqrt(dx*dx + dy*dy + dz*dz)
 
-        # Very tiny – just tap once and lift.
-        if dist < 0.5:
-            self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1], z=p_start_rb[2],
-                                  roll=-180, pitch=-90, yaw=0,
+        if dist < 0.5:                                              # tiny → single tap
+            self._lift_off_plane(*p_start_rb, speed=speed)
+            self.arm.set_position(*p_start_rb, roll=-180, pitch=-90, yaw=0,
                                   speed=speed/1.5, wait=True)
-            self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                                  z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
-                                  roll=-180, pitch=-90, yaw=0,
-                                  speed=speed, wait=True)
+            lifted = self._lift_off_plane(*p_start_rb, speed=speed)
             setattr(self, '_stipple_was_active', True)
-            return (p_start_rb[0], p_start_rb[1], p_start_rb[2] + self.STIPPLE_LIFT_MM)
+            return lifted
 
-        # ------------------------------------------------------------
-        # 2)  Decide dot spacing from audio “stipple” (0 … 1)
-        # ------------------------------------------------------------
-        lvl = max(0.01, current_stipple_level)                 # avoid zero
-        seg_len = max(self.STIPPLE_MIN_SEGMENT_MM, self.STIPPLE_BASE_SEGMENT_MM * (1.0 - self.STIPPLE_RANGE_FACTOR * (lvl ** 2)))
-        num_dots = max(2, int(math.ceil(dist / seg_len)))      # at least start & end
+        lvl      = max(0.01, current_stipple_level)
+        seg_len  = max(self.STIPPLE_MIN_SEGMENT_MM,
+                       self.STIPPLE_BASE_SEGMENT_MM *
+                       (1.0 - self.STIPPLE_RANGE_FACTOR * (lvl**2)))
+        n_dot    = max(2, int(math.ceil(dist / seg_len)))
 
-        # ------------------------------------------------------------
-        # 3)  Lift above the first point, then tap it (t = 0)
-        # ------------------------------------------------------------
-        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                              z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
-                              roll=-180, pitch=-90, yaw=0,
-                              speed=speed, wait=True)
-
-        # first tap
-        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1], z=p_start_rb[2],
-                              roll=-180, pitch=-90, yaw=0,
+        # first dot
+        cur_x, cur_y, cur_z = self._lift_off_plane(*p_start_rb, speed=speed)
+        self.arm.set_position(*p_start_rb, roll=-180, pitch=-90, yaw=0,
                               speed=speed/1.5, wait=True)
-        self.arm.set_position(x=p_start_rb[0], y=p_start_rb[1],
-                              z=p_start_rb[2] + self.STIPPLE_LIFT_MM,
-                              roll=-180, pitch=-90, yaw=0,
-                              speed=speed, wait=True)
+        cur_x, cur_y, cur_z = self._lift_off_plane(*p_start_rb, speed=speed)
 
-        # ------------------------------------------------------------
-        # 4)  Remaining dots:  i = 1 … num_dots-1   (includes end-point)
-        # ------------------------------------------------------------
-        for i in range(1, num_dots):
-            t = i / (num_dots - 1)            # 0 < t ≤ 1
-            nx = p_start_rb[0] + t * dx       # interpolate X, Y, Z
-            ny = p_start_rb[1] + t * dy
-            nz = p_start_rb[2] + t * dz
+        # remaining dots
+        for i in range(1, n_dot):
+            t  = i / (n_dot - 1)
+            nx = p_start_rb[0] + t*dx
+            ny = p_start_rb[1] + t*dy
+            nz = p_start_rb[2] + t*dz
 
-            # move above the dot
-            self.arm.set_position(x=nx, y=ny, z=nz + self.STIPPLE_LIFT_MM,
+            self.arm.set_position(x=nx - self.STIPPLE_LIFT_MM, y=ny, z=nz,
                                   roll=-180, pitch=-90, yaw=0,
                                   speed=speed, wait=True)
-            # tap
             self.arm.set_position(x=nx, y=ny, z=nz,
                                   roll=-180, pitch=-90, yaw=0,
                                   speed=speed/1.5, wait=True)
-            # lift
-            self.arm.set_position(x=nx, y=ny, z=nz + self.STIPPLE_LIFT_MM,
-                                  roll=-180, pitch=-90, yaw=0,
-                                  speed=speed, wait=True)
+            cur_x, cur_y, cur_z = self._lift_off_plane(nx, ny, nz, speed)
 
         setattr(self, '_stipple_was_active', True)
-        return (p_end_rb[0], p_end_rb[1], p_end_rb[2] + self.STIPPLE_LIFT_MM)
+        return cur_x, cur_y, cur_z
 
 
     def get_current_arm_position(self):
