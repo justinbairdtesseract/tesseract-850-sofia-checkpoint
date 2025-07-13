@@ -38,8 +38,9 @@ class XArmController:
     STIPPLE_BASE_SEGMENT_MM = 5.0  # Base length of a stipple segment/gap in mm
     STIPPLE_LIFT_MM = 10.0          # How much to lift between stipples
     
-    STIPPLE_MIN_SEGMENT_MM = 0.3   # allow very tight dots
-    STIPPLE_RANGE_FACTOR   = 0.95  # how much of the base length can disappear
+    STIPPLE_MIN_SEGMENT_MM       = 0.3   # minimum spacing at maximum stipple
+    STIPPLE_MIN_SEGMENT_MM_MAX   = 1.0   # spacing when stipple is off
+    STIPPLE_RANGE_FACTOR         = 0.95  # how much of the base length can disappear
 
 
     
@@ -246,7 +247,9 @@ class XArmController:
 
             # decide number of dots
             lvl   = max(0.01, stipple_level)
-            seg   = max(1.0, self.STIPPLE_BASE_SEGMENT_MM *
+            min_seg = self._stipple_min_spacing(lvl)
+            seg   = max(min_seg,
+                        self.STIPPLE_BASE_SEGMENT_MM *
                         (1.0 - 0.8 * lvl))
             n_dot = max(1, int(round(dist / seg)))
 
@@ -979,6 +982,12 @@ class XArmController:
         # We can refine the scaling later if needed (e.g., non-linear)
         return self.audio_params['stipple'] / 127.0
 
+    def _stipple_min_spacing(self, level: float) -> float:
+        """Return the dynamic minimum dot spacing based on stipple level."""
+        hi = self.STIPPLE_MIN_SEGMENT_MM_MAX
+        lo = self.STIPPLE_MIN_SEGMENT_MM
+        return hi - (hi - lo) * level
+
     def _stipple_segment_runner(self, p_start_rb, p_end_rb, speed, current_stipple_level):
         """
         Draw a stippled segment from p_start_rb → p_end_rb, lifting off-plane
@@ -998,7 +1007,8 @@ class XArmController:
             return lifted
 
         lvl      = max(0.01, current_stipple_level)
-        seg_len  = max(self.STIPPLE_MIN_SEGMENT_MM,
+        min_seg  = self._stipple_min_spacing(lvl)
+        seg_len  = max(min_seg,
                        self.STIPPLE_BASE_SEGMENT_MM *
                        (1.0 - self.STIPPLE_RANGE_FACTOR * (lvl**2)))
         n_dot    = max(2, int(math.ceil(dist / seg_len)))
