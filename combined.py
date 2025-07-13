@@ -210,6 +210,14 @@ class XArmController:
                             speed=speed, wait=True)
         return new_x, y, z
 
+    # unified public wrapper for stipple retraction
+    def retract_pen(self, x: float, y: float, z: float, speed: float):
+        """
+        Pull the brush away from the canvas by STIPPLE_LIFT_MM along –X
+        (normal to the picture plane).  Returns the new lifted (x, y, z).
+        """
+        return self._lift_off_plane(x, y, z, speed)
+
     # --------------
     # BASIC SHAPES
     # --------------
@@ -610,10 +618,11 @@ class XArmController:
                     if stipple_level > self.STIPPLE_THRESHOLD:
                         # Ensure pen is lifted before starting stipple segment if it was drawing continuously
                         if pen_down and not getattr(self, '_stipple_was_active', False):
-                             # Lift from the current Z of segment_start_rb
-                             self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2] + self.STIPPLE_LIFT_MM,
-                                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                             segment_start_rb = (segment_start_rb[0], segment_start_rb[1], segment_start_rb[2] + self.STIPPLE_LIFT_MM)
+                             # Lift away from the canvas before stippling
+                             segment_start_rb = self.retract_pen(segment_start_rb[0],
+                                                                  segment_start_rb[1],
+                                                                  segment_start_rb[2],
+                                                                  draw_spd)
 
                         last_rb = self._stipple_segment_runner(segment_start_rb, segment_end_rb, draw_spd, stipple_level)
                         # _stipple_segment_runner now sets 'self._stipple_was_active' to True internally
@@ -684,21 +693,22 @@ class XArmController:
                         if stipple_level > self.STIPPLE_THRESHOLD:
                             # Ensure pen is lifted if transitioning from continuous draw or previous stipple segment ended low
                             if k_pt == 0 and pen_down and not getattr(self, '_stipple_was_active', False):
-                                self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2] + self.STIPPLE_LIFT_MM,
-                                                      roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                                segment_start_rb = (segment_start_rb[0], segment_start_rb[1], segment_start_rb[2] + self.STIPPLE_LIFT_MM)
+                                segment_start_rb = self.retract_pen(segment_start_rb[0],
+                                                                    segment_start_rb[1],
+                                                                    segment_start_rb[2],
+                                                                    draw_spd)
 
                             # Tap at segment_end_rb (which is the current curve point)
-                            # Move to above the point
-                            self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2] + self.STIPPLE_LIFT_MM,
+                            # Move to the point while staying lifted along –X
+                            self.arm.set_position(x=segment_end_rb[0] - self.STIPPLE_LIFT_MM,
+                                                  y=segment_end_rb[1], z=segment_end_rb[2],
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
                             # Tap down
                             self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2],
                                                   roll=-180, pitch=-90, yaw=0, speed=draw_spd / 1.5, wait=True)
-                            # Lift up
-                            self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2] + self.STIPPLE_LIFT_MM,
-                                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                            last_rb = (segment_end_rb[0], segment_end_rb[1], segment_end_rb[2] + self.STIPPLE_LIFT_MM)
+                            # Lift up along –X
+                            last_rb = self.retract_pen(segment_end_rb[0], segment_end_rb[1],
+                                                       segment_end_rb[2], draw_spd)
                             setattr(self, '_stipple_was_active', True)
                         else:
                             # Continuous drawing for curve segment
@@ -764,18 +774,19 @@ class XArmController:
 
                         if stipple_level > self.STIPPLE_THRESHOLD:
                             if k_pt == 0 and pen_down and not getattr(self, '_stipple_was_active', False):
-                                self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2] + self.STIPPLE_LIFT_MM,
-                                                      roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                                segment_start_rb = (segment_start_rb[0], segment_start_rb[1], segment_start_rb[2] + self.STIPPLE_LIFT_MM)
+                                segment_start_rb = self.retract_pen(segment_start_rb[0],
+                                                                    segment_start_rb[1],
+                                                                    segment_start_rb[2],
+                                                                    draw_spd)
 
-                            self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2] + self.STIPPLE_LIFT_MM,
-                                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                            self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2],
-                                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd / 1.5, wait=True)
-                            self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2] + self.STIPPLE_LIFT_MM,
-                                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                            last_rb = (segment_end_rb[0], segment_end_rb[1], segment_end_rb[2] + self.STIPPLE_LIFT_MM)
-                            setattr(self, '_stipple_was_active', True)
+                                self.arm.set_position(x=segment_end_rb[0] - self.STIPPLE_LIFT_MM,
+                                                      y=segment_end_rb[1], z=segment_end_rb[2],
+                                                      roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
+                                self.arm.set_position(x=segment_end_rb[0], y=segment_end_rb[1], z=segment_end_rb[2],
+                                                      roll=-180, pitch=-90, yaw=0, speed=draw_spd / 1.5, wait=True)
+                                last_rb = self.retract_pen(segment_end_rb[0], segment_end_rb[1],
+                                                           segment_end_rb[2], draw_spd)
+                                setattr(self, '_stipple_was_active', True)
                         else:
                             if k_pt == 0 and getattr(self, '_stipple_was_active', False):
                                 self.arm.set_position(x=segment_start_rb[0], y=segment_start_rb[1], z=segment_start_rb[2],
@@ -814,9 +825,7 @@ class XArmController:
                     if stipple_level > self.STIPPLE_THRESHOLD:
                         # Ensure pen is lifted before starting stipple segment
                         if pen_down and not getattr(self, '_stipple_was_active', False):
-                             self.arm.set_position(x=last_rb[0], y=last_rb[1], z=last_rb[2] + self.STIPPLE_LIFT_MM,
-                                                  roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                             last_rb = (last_rb[0], last_rb[1], last_rb[2] + self.STIPPLE_LIFT_MM) # Update last_rb to be lifted
+                             last_rb = self.retract_pen(last_rb[0], last_rb[1], last_rb[2], draw_spd)
 
                         last_rb = self._stipple_segment_runner(last_rb, segment_end_rb, draw_spd, stipple_level)
                     else:
@@ -844,9 +853,7 @@ class XArmController:
                 if stipple_level > self.STIPPLE_THRESHOLD:
                     # Ensure pen is lifted before stippling the closing segment
                     if pen_down and not getattr(self, '_stipple_was_active', False):
-                        self.arm.set_position(x=last_rb[0], y=last_rb[1], z=last_rb[2] + self.STIPPLE_LIFT_MM,
-                                              roll=-180, pitch=-90, yaw=0, speed=draw_spd, wait=True)
-                        last_rb = (last_rb[0], last_rb[1], last_rb[2] + self.STIPPLE_LIFT_MM)
+                        last_rb = self.retract_pen(last_rb[0], last_rb[1], last_rb[2], draw_spd)
 
                     closed_path_final_rb = self._stipple_segment_runner(last_rb, segment_end_rb, draw_spd, stipple_level)
                     # After stippling, arm is lifted at segment_end_rb (which is start_rb)
@@ -877,7 +884,8 @@ class XArmController:
         if pen_down and last_rb:
             final_z_for_retreat = last_rb[2]
             if getattr(self, '_stipple_was_active', False):
-                final_z_for_retreat = last_rb[2] - self.STIPPLE_LIFT_MM # Adjust Z to drawing depth
+                # retract_pen keeps Z constant, so no adjustment needed
+                final_z_for_retreat = last_rb[2]
 
             self.retreat_from_canvas(last_rb[0], last_rb[1], final_z_for_retreat, speed=self._speed_mm_s())
             # Clear the stippling state for the next independent stroke
