@@ -285,10 +285,187 @@ controller.osc_client.send_message("/listen", 1)
         # controller.fill_canvas(line_spacing=10)
 # controller.draw_random_arcs(10)
 
+ARMTRACK_SPEED_MIN = 10.0
+ARMTRACK_SPEED_MAX = 300.0
+ARMTRACK_OPEN_GRIPPER_POS = 850
+ARMTRACK_CLOSE_GRIPPER_POS = 0
+
+
+def _armtrack_as_int_code(result):
+    if isinstance(result, (tuple, list)) and result:
+        result = result[0]
+    try:
+        return int(result)
+    except (TypeError, ValueError):
+        return -1
+
+
+def _armtrack_ack(command):
+    controller.osc_client.send_message("/armtrack/ack", [str(command), 0])
+
+
+def _armtrack_error(command, error):
+    controller.osc_client.send_message("/armtrack/error", [str(command), str(error)])
+
+
+def _armtrack_clamp_speed(raw_speed):
+    speed = float(raw_speed)
+    return max(ARMTRACK_SPEED_MIN, min(ARMTRACK_SPEED_MAX, speed))
+
+
+def _armtrack_wait_flag(raw_wait):
+    if isinstance(raw_wait, str):
+        return raw_wait.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(int(raw_wait))
+
+
+def _armtrack_open_gripper(arm):
+    if hasattr(arm, 'open_lite6_gripper'):
+        return _armtrack_as_int_code(arm.open_lite6_gripper())
+    if hasattr(arm, 'set_gripper_position'):
+        return _armtrack_as_int_code(
+            arm.set_gripper_position(ARMTRACK_OPEN_GRIPPER_POS, wait=True, auto_enable=True)
+        )
+    if hasattr(arm, 'robotiq_open'):
+        return _armtrack_as_int_code(arm.robotiq_open(wait=True))
+    raise RuntimeError('No supported gripper-open API found on this arm profile.')
+
+
+def _armtrack_close_gripper(arm):
+    if hasattr(arm, 'close_lite6_gripper'):
+        return _armtrack_as_int_code(arm.close_lite6_gripper())
+    if hasattr(arm, 'set_gripper_position'):
+        return _armtrack_as_int_code(
+            arm.set_gripper_position(ARMTRACK_CLOSE_GRIPPER_POS, wait=True, auto_enable=True)
+        )
+    if hasattr(arm, 'robotiq_close'):
+        return _armtrack_as_int_code(arm.robotiq_close(wait=True))
+    raise RuntimeError('No supported gripper-close API found on this arm profile.')
+
+
+def _handle_armtrack_command(message):
+    if len(message) < 2:
+        _armtrack_error('armtrack', 'missing_sub_command')
+        return
+
+    sub_cmd = str(message[1])
+
+    if sub_cmd in {'move_to_pose', 'move_linear'}:
+        if not controller.allowed_to_play:
+            _armtrack_error(sub_cmd, 'panic_mode_enabled')
+            return
+        if len(message) < 10:
+            _armtrack_error(sub_cmd, 'expected 8 payload fields: x y z roll pitch yaw speed wait')
+            return
+
+        try:
+            x = float(message[2])
+            y = float(message[3])
+            z = float(message[4])
+            roll = float(message[5])
+            pitch = float(message[6])
+            yaw = float(message[7])
+            speed = _armtrack_clamp_speed(message[8])
+            wait = _armtrack_wait_flag(message[9])
+        except (TypeError, ValueError) as exc:
+            _armtrack_error(sub_cmd, f'invalid_payload:{exc}')
+            return
+
+        try:
+            controller.setup()
+            code = _armtrack_as_int_code(
+                controller.arm.set_position(
+                    x=x,
+                    y=y,
+                    z=z,
+                    roll=roll,
+                    pitch=pitch,
+                    yaw=yaw,
+                    speed=speed,
+                    wait=wait,
+                )
+            )
+        except Exception as exc:
+            _armtrack_error(sub_cmd, f'exception:{exc}')
+            return
+
+        if code == 0:
+            _armtrack_ack(sub_cmd)
+        else:
+            _armtrack_error(sub_cmd, code)
+        return
+
+    if sub_cmd == 'open_gripper':
+        if not controller.allowed_to_play:
+            _armtrack_error(sub_cmd, 'panic_mode_enabled')
+            return
+        try:
+            controller.setup()
+            code = _armtrack_open_gripper(controller.arm)
+        except Exception as exc:
+            _armtrack_error(sub_cmd, f'exception:{exc}')
+            return
+        if code == 0:
+            _armtrack_ack(sub_cmd)
+        else:
+            _armtrack_error(sub_cmd, code)
+        return
+
+    if sub_cmd == 'close_gripper':
+        if not controller.allowed_to_play:
+            _armtrack_error(sub_cmd, 'panic_mode_enabled')
+            return
+        try:
+            controller.setup()
+            code = _armtrack_close_gripper(controller.arm)
+        except Exception as exc:
+            _armtrack_error(sub_cmd, f'exception:{exc}')
+            return
+        if code == 0:
+            _armtrack_ack(sub_cmd)
+        else:
+            _armtrack_error(sub_cmd, code)
+        return
+
+    if sub_cmd == 'get_position':
+        try:
+            controller.setup()
+            result = controller.arm.get_position()
+        except Exception as exc:
+            _armtrack_error(sub_cmd, f'exception:{exc}')
+            return
+
+        if not isinstance(result, (tuple, list)) or len(result) < 2:
+            _armtrack_error(sub_cmd, 'invalid_get_position_response')
+            return
+
+        code = _armtrack_as_int_code(result[0])
+        position = result[1]
+        if code != 0:
+            _armtrack_error(sub_cmd, code)
+            return
+        if not isinstance(position, (tuple, list)) or len(position) < 6:
+            _armtrack_error(sub_cmd, 'position_payload_too_short')
+            return
+
+        payload = [float(position[i]) for i in range(6)]
+        controller.osc_client.send_message('/armtrack/current_pose', payload)
+        _armtrack_ack(sub_cmd)
+        return
+
+    _armtrack_error(sub_cmd, 'unknown_sub_command')
+
+
 def interactive(name, *args):
     max_message = list(args)
+    if not max_message:
+        return
     if max_message[0] != 'suggested_fingers':
         print(max_message)
+
+    if max_message[0] == 'armtrack':
+        _handle_armtrack_command(max_message)
+        return
 
     if max_message[0] == 'homing':
 
