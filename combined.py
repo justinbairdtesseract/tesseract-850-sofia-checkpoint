@@ -54,6 +54,19 @@ LINUX_IP = os.getenv('TESSERACT_OSC_BIND_IP', '0.0.0.0')
 MAC_IP = os.getenv('TESSERACT_OSC_TARGET_IP', '192.168.0.128')
 MAXMSP_TO_PORT = int(os.getenv('TESSERACT_OSC_TARGET_PORT', '7654'))
 MAXMSP_FROM_PORT = int(os.getenv('TESSERACT_OSC_BIND_PORT', '7655'))
+MUSE_OSC_ENABLED = os.getenv('TESSERACT_MUSE_OSC_ENABLED', '1').strip().lower() in {
+    '1',
+    'true',
+    'yes',
+    'on',
+}
+MUSE_OSC_BIND_IP = os.getenv('TESSERACT_MUSE_OSC_BIND_IP', '0.0.0.0')
+MUSE_OSC_BIND_PORT = int(os.getenv('TESSERACT_MUSE_OSC_BIND_PORT', '7400'))
+MUSE_ATTENTION_LOW = float(os.getenv('TESSERACT_MUSE_ATTENTION_LOW', '0.33'))
+MUSE_ATTENTION_HIGH = float(os.getenv('TESSERACT_MUSE_ATTENTION_HIGH', '0.66'))
+MUSE_HEAD_GESTURE_THRESHOLD = float(os.getenv('TESSERACT_MUSE_HEAD_GESTURE_THRESHOLD', '0.5'))
+MUSE_HEAD_GESTURE_COOLDOWN_SEC = float(os.getenv('TESSERACT_MUSE_HEAD_GESTURE_COOLDOWN_SEC', '1.5'))
+MUSE_BRUSH_CHANGE_STROKE_LOCKOUT = int(os.getenv('TESSERACT_MUSE_BRUSH_CHANGE_STROKE_LOCKOUT', '2'))
 ROBOT_IP = os.getenv('TESSERACT_ROBOT_IP', '192.168.0.203')
 DEFAULT_CANVAS_CORNERS_PATH = (
     Path(__file__).resolve().parents[1] / 'Brush-selector' / 'canvas_corners.json'
@@ -2066,6 +2079,8 @@ class XArmController:
         slot_data["stroke_index"] = index + 1
         slot_data["finished"] = slot_data["stroke_index"] >= total
         self.bci_strokes_since_color_change += 1
+        global muse_strokes_since_brush_change
+        muse_strokes_since_brush_change += 1
         self.save_bci_paint_state()
         payload = [
             int(self.bci_attention_state),
@@ -3252,6 +3267,227 @@ def interactive(address, *args):
             controller.osc_client.send_message("/listen", 0)
 
 
+def macbook_path_interactive(address, *args):
+    path_parts = [
+        part.strip()
+        for part in str(address).split("/")
+        if part.strip()
+    ]
+    if path_parts and path_parts[0].lower() == "macbook":
+        path_parts = path_parts[1:]
+    if not path_parts:
+        interactive(address, *args)
+        return
+
+    converted_args = path_parts + list(args)
+    print(
+        f"OSC recv path-style: address={address} converted_args={converted_args}",
+        flush=True,
+    )
+    interactive(address, *converted_args)
+
+
+def unhandled_osc(address, *args):
+    print(f"OSC unhandled: address={address} args={list(args)}", flush=True)
+
+
+def _muse_paint_next_stroke(_value):
+    start_attention = int(controller.bci_attention_state)
+    attempted = []
+    result = None
+    for offset in range(3):
+        slot = (start_attention + offset) % 3
+        slot_data = controller.bci_slots[slot]
+        attempted.append(slot + 1)
+        if int(slot_data.get("stroke_index", 0)) >= len(slot_data.get("strokes", [])):
+            continue
+        if slot != int(controller.bci_attention_state):
+            print(
+                f"Muse OSC head_down_paint: selected SVG {start_attention + 1} is finished; "
+                f"switching to SVG {slot + 1}",
+                flush=True,
+            )
+            controller.set_bci_attention(slot)
+        result = controller.draw_bci_next_stroke()
+        break
+
+    if result is None:
+        print(
+            f"Muse OSC head_down_paint: no unfinished BCI SVG slots found; attempted={attempted}",
+            flush=True,
+        )
+        result = {
+            "drawn": False,
+            "reason": "all_slots_finished",
+            "slot": start_attention,
+            "svg_number": start_attention + 1,
+            "stroke_index": 0,
+            "total_strokes": 0,
+        }
+
+    if result.get("drawn"):
+        controller.apply_bci_pending_color_change(brush_selector)
+    controller.send_bci_status()
+    return result
+
+
+def _muse_brush_change_allowed(action_name, *, log=False):
+    if muse_strokes_since_brush_change >= MUSE_BRUSH_CHANGE_STROKE_LOCKOUT:
+        return True
+    remaining = MUSE_BRUSH_CHANGE_STROKE_LOCKOUT - muse_strokes_since_brush_change
+    if log:
+        print(
+            f"Muse OSC {action_name} ignored until {remaining} more stroke command(s) run",
+            flush=True,
+        )
+        controller.osc_client.send_message(
+            "/brush/ignored",
+            [action_name, "stroke_lockout", int(remaining)],
+        )
+    return False
+
+
+def _muse_brush_left(_value):
+    global muse_strokes_since_brush_change
+    if brush_selector is None:
+        raise RuntimeError("BrushSelector is not initialized")
+    if not _muse_brush_change_allowed("head_left_brush"):
+        return {"changed": False, "reason": "stroke_lockout"}
+    state = brush_selector.move_next_left()
+    muse_strokes_since_brush_change = 0
+    controller.osc_client.send_message("/brush/done", ["muse_head_left", state["CURRENT_BRUSH"]])
+    return state
+
+
+def _muse_brush_right(_value):
+    global muse_strokes_since_brush_change
+    if brush_selector is None:
+        raise RuntimeError("BrushSelector is not initialized")
+    if not _muse_brush_change_allowed("head_right_brush"):
+        return {"changed": False, "reason": "stroke_lockout"}
+    state = brush_selector.move_next_right()
+    muse_strokes_since_brush_change = 0
+    controller.osc_client.send_message("/brush/done", ["muse_head_right", state["CURRENT_BRUSH"]])
+    return state
+
+
+def _handle_muse_action(action_name, value, action_func, *, use_threshold=True, use_cooldown=True):
+    global last_muse_action_times
+    if use_threshold and value < MUSE_HEAD_GESTURE_THRESHOLD:
+        return
+
+    now = time.monotonic()
+    previous = last_muse_action_times.get(action_name, 0.0)
+    if use_cooldown and now - previous < MUSE_HEAD_GESTURE_COOLDOWN_SEC:
+        print(
+            f"Muse OSC {action_name} ignored during cooldown: value={value:.3f}",
+            flush=True,
+        )
+        return
+
+    if not controller.command_lock.acquire(blocking=False):
+        print(
+            f"Muse OSC {action_name} ignored while robot is busy: value={value:.3f}",
+            flush=True,
+        )
+        return
+
+    if use_cooldown:
+        last_muse_action_times[action_name] = now
+    controller.busy = True
+    try:
+        print(f"Muse OSC {action_name} running: value={value:.3f}", flush=True)
+        controller.osc_client.send_message("/listen", 0)
+        result = action_func(value)
+        print(f"Muse OSC {action_name} done: {result}", flush=True)
+    except Exception as exc:
+        print(f"Muse OSC {action_name} failed: {exc}", flush=True)
+        controller.osc_client.send_message("/bci/error", [action_name, str(exc)])
+    finally:
+        controller.busy = False
+        controller.command_lock.release()
+        controller.osc_client.send_message("/listen", 1 if controller.allowed_to_play else 0)
+
+
+def muse_osc_handler(address, *args):
+    global controller
+    global brush_selector
+    values = list(args)
+    print(f"Muse OSC recv: address={address} args={values}", flush=True)
+    if not controller or not values:
+        return
+
+    normalized_address = str(address).strip().lower()
+    attention_source = normalized_address in {
+        "/muse/elements/experimental/concentration",
+        "/muse/concentration",
+        "/muse/classifier/focused",
+    }
+    relaxed_source = normalized_address in {
+        "/muse/elements/experimental/mellow",
+        "/muse/mellow",
+        "/muse/classifier/relaxed",
+    }
+    muse_actions = {
+        "/muse/classifier/head/down": ("head_down_paint", _muse_paint_next_stroke, False, False),
+        "/muse/elements/head/down": ("head_down_paint", _muse_paint_next_stroke, False, False),
+        "/muse/head/down": ("head_down_paint", _muse_paint_next_stroke, False, False),
+        "/muse/classifier/head/left": ("head_left_brush", _muse_brush_left, True, True),
+        "/muse/elements/head/left": ("head_left_brush", _muse_brush_left, True, True),
+        "/muse/head/left": ("head_left_brush", _muse_brush_left, True, True),
+        "/muse/classifier/head/right": ("head_right_brush", _muse_brush_right, True, True),
+        "/muse/elements/head/right": ("head_right_brush", _muse_brush_right, True, True),
+        "/muse/head/right": ("head_right_brush", _muse_brush_right, True, True),
+    }
+    if normalized_address in muse_actions:
+        try:
+            value = max(0.0, min(1.0, float(values[0])))
+        except (TypeError, ValueError):
+            print(f"Muse OSC gesture ignored; non-numeric value: {values[0]}", flush=True)
+            return
+        action_name, action_func, use_threshold, use_cooldown = muse_actions[normalized_address]
+        if action_name in {"head_left_brush", "head_right_brush"}:
+            if value < MUSE_HEAD_GESTURE_THRESHOLD:
+                return
+            if not _muse_brush_change_allowed(action_name):
+                return
+        _handle_muse_action(
+            action_name,
+            value,
+            action_func,
+            use_threshold=use_threshold,
+            use_cooldown=use_cooldown,
+        )
+        return
+
+    if not attention_source and not relaxed_source:
+        return
+
+    try:
+        value = max(0.0, min(1.0, float(values[0])))
+    except (TypeError, ValueError):
+        print(f"Muse OSC attention ignored; non-numeric value: {values[0]}", flush=True)
+        return
+
+    attention_value = 1.0 - value if relaxed_source else value
+    if attention_value < MUSE_ATTENTION_LOW:
+        attention = 0
+    elif attention_value < MUSE_ATTENTION_HIGH:
+        attention = 1
+    else:
+        attention = 2
+
+    if attention == int(controller.bci_attention_state):
+        return
+
+    controller.set_bci_attention(attention)
+    controller.send_bci_status()
+    print(
+        f"Muse OSC mapped {normalized_address} value={value:.3f} to BCI attention {attention}",
+        flush=True,
+    )
+
+
 def _interactive_impl(address, *args):
     """
     Example OSC handler. We’ll add a “svg” sub-command for loading and stepping
@@ -3945,8 +4181,11 @@ def _interactive_impl(address, *args):
 
 # This global variable will hold the server instance
 osc_server_instance = None
+muse_osc_server_instance = None
+last_muse_action_times = {}
+muse_strokes_since_brush_change = MUSE_BRUSH_CHANGE_STROKE_LOCKOUT
 
-def on_exit(controller_instance, server_instance):
+def on_exit(controller_instance, server_instance, muse_server_instance=None):
     print("Exiting program...")
     if controller_instance:
         try:
@@ -3958,12 +4197,16 @@ def on_exit(controller_instance, server_instance):
     if server_instance:
         print("Closing OSC server...")
         server_instance.server_close()
+    if muse_server_instance:
+        print("Closing Muse OSC server...")
+        muse_server_instance.server_close()
     print("Cleanup finished.")
 
 def main():
     global controller # Declare controller as global to modify it
     global brush_selector
     global osc_server_instance
+    global muse_osc_server_instance
 
     # Instantiate controller
     controller = XArmController(ROBOT_IP)
@@ -3977,14 +4220,45 @@ def main():
     # Setup OSC server
     osc_dispatcher = dispatcher.Dispatcher()
     osc_dispatcher.map("/macbook", interactive) # interactive will use the global controller
+    osc_dispatcher.map("/macbook/*", macbook_path_interactive)
+    osc_dispatcher.set_default_handler(unhandled_osc)
 
     osc_server_instance = osc_server.ThreadingOSCUDPServer((LINUX_IP, MAXMSP_FROM_PORT), osc_dispatcher)
     print("Serving on {}".format(osc_server_instance.server_address))
 
+    if MUSE_OSC_ENABLED:
+        muse_dispatcher = dispatcher.Dispatcher()
+        muse_dispatcher.map("/muse/*", muse_osc_handler)
+        muse_dispatcher.set_default_handler(muse_osc_handler)
+        try:
+            muse_osc_server_instance = osc_server.ThreadingOSCUDPServer(
+                (MUSE_OSC_BIND_IP, MUSE_OSC_BIND_PORT),
+                muse_dispatcher,
+            )
+            muse_thread = threading.Thread(
+                target=muse_osc_server_instance.serve_forever,
+                name="muse-osc-server",
+                daemon=True,
+            )
+            muse_thread.start()
+            print(
+                "Muse OSC listening on "
+                f"{muse_osc_server_instance.server_address}; "
+                "send Muse to this machine on UDP port "
+                f"{MUSE_OSC_BIND_PORT}.",
+                flush=True,
+            )
+        except OSError as exc:
+            print(
+                f"Muse OSC listener disabled; failed to bind "
+                f"{MUSE_OSC_BIND_IP}:{MUSE_OSC_BIND_PORT}: {exc}",
+                flush=True,
+            )
+
     # Register exit handler
     # Pass controller and server to on_exit using a lambda or functools.partial
     # because atexit doesn't pass arguments to registered functions directly.
-    atexit.register(lambda: on_exit(controller, osc_server_instance))
+    atexit.register(lambda: on_exit(controller, osc_server_instance, muse_osc_server_instance))
 
     try:
         osc_server_instance.serve_forever()
@@ -3992,7 +4266,7 @@ def main():
         print("Keyboard interrupt received, shutting down.")
     finally:
         # Ensure cleanup is called if serve_forever() exits unexpectedly
-        on_exit(controller, osc_server_instance)
+        on_exit(controller, osc_server_instance, muse_osc_server_instance)
 
 if __name__ == '__main__':
     main()
