@@ -1,18 +1,38 @@
 # vision.py
 
-import cv2
-import mediapipe as mp
 import threading
 
-# Initialize MediaPipe Face Mesh
-mp_face_mesh = mp.solutions.face_mesh
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+cv2 = None
+mp_face_mesh = None
+mp_drawing = None
+mp_drawing_styles = None
+face_mesh = None
 
 face_center = (0, 0)  # Global variable to store face center coordinates
 left_eye_center = (0, 0)
 right_eye_center = (0, 0)
 lock = threading.Lock()  # Lock for thread-safe access to face_center
+
+
+def _load_face_mesh_dependencies():
+    global cv2, mp_face_mesh, mp_drawing, mp_drawing_styles
+    if cv2 is not None and mp_face_mesh is not None:
+        return True
+    try:
+        import cv2 as cv2_module
+        import mediapipe as mp
+    except ImportError as exc:
+        print(
+            f"Face mesh disabled; optional vision dependency is missing: {exc}",
+            flush=True,
+        )
+        return False
+
+    cv2 = cv2_module
+    mp_face_mesh = mp.solutions.face_mesh
+    mp_drawing = mp.solutions.drawing_utils
+    mp_drawing_styles = mp.solutions.drawing_styles
+    return True
 
 def process_frame(image, display):
     global face_center, left_eye_center, right_eye_center  # Use the global variable
@@ -56,6 +76,8 @@ def process_frame(image, display):
 
 def face_mesh_thread(input_source, display):
     global face_mesh
+    if not _load_face_mesh_dependencies():
+        return
     face_mesh = mp_face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
     cap = cv2.VideoCapture(0) if input_source == 'webcam' else cv2.VideoCapture(input_source)
 
@@ -75,6 +97,8 @@ def face_mesh_thread(input_source, display):
         cv2.destroyAllWindows()
 
 def start_face_mesh(input_source, display):
+    if not _load_face_mesh_dependencies():
+        return None
     thread = threading.Thread(target=face_mesh_thread, args=(input_source, display))
     thread.start()
     return thread
