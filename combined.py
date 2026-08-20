@@ -67,6 +67,8 @@ MUSE_ATTENTION_HIGH = float(os.getenv('TESSERACT_MUSE_ATTENTION_HIGH', '0.66'))
 MUSE_HEAD_GESTURE_THRESHOLD = float(os.getenv('TESSERACT_MUSE_HEAD_GESTURE_THRESHOLD', '0.5'))
 MUSE_HEAD_GESTURE_COOLDOWN_SEC = float(os.getenv('TESSERACT_MUSE_HEAD_GESTURE_COOLDOWN_SEC', '1.5'))
 MUSE_BRUSH_CHANGE_STROKE_LOCKOUT = int(os.getenv('TESSERACT_MUSE_BRUSH_CHANGE_STROKE_LOCKOUT', '2'))
+BCI_COLOR_BRUSH_MIN = int(os.getenv('TESSERACT_BCI_COLOR_BRUSH_MIN', '2'))
+BCI_COLOR_BRUSH_MAX = int(os.getenv('TESSERACT_BCI_COLOR_BRUSH_MAX', '6'))
 ROBOT_IP = os.getenv('TESSERACT_ROBOT_IP', '192.168.0.203')
 DEFAULT_CANVAS_CORNERS_PATH = (
     Path(__file__).resolve().parents[1] / 'Brush-selector' / 'canvas_corners.json'
@@ -228,9 +230,11 @@ class XArmController:
         self.bci_attention_state = 0
         self.bci_pending_emg = False
         self.bci_stop_requested = False
-        self.bci_color_brush_count = int(os.getenv('TESSERACT_BCI_COLOR_BRUSH_COUNT', '4'))
+        self.bci_color_brush_min = max(1, int(BCI_COLOR_BRUSH_MIN))
+        self.bci_color_brush_max = max(self.bci_color_brush_min, int(BCI_COLOR_BRUSH_MAX))
+        self.bci_color_brush_count = self.bci_color_brush_max
         self.bci_color_cooldown_strokes = int(
-            os.getenv('TESSERACT_BCI_COLOR_COOLDOWN_STROKES', '3')
+            os.getenv('TESSERACT_BCI_COLOR_COOLDOWN_STROKES', '2')
         )
         self.bci_strokes_since_color_change = self.bci_color_cooldown_strokes
         self.bci_current_color_brush = 0
@@ -2125,9 +2129,12 @@ class XArmController:
         current = self.bci_current_color_brush
         if selector_state.get("HOLDING_BRUSH"):
             current = int(selector_state.get("CURRENT_BRUSH", current))
-        if current < 1 or current > self.bci_color_brush_count:
+        if current < self.bci_color_brush_min or current > self.bci_color_brush_max:
             current = 0
-        next_brush = 1 if current == 0 else (current % self.bci_color_brush_count) + 1
+        if current == 0 or current >= self.bci_color_brush_max:
+            next_brush = self.bci_color_brush_min
+        else:
+            next_brush = current + 1
         print(
             f"BCI color change: EMG cycling brush {current or 'none'} -> {next_brush}",
             flush=True,
@@ -2141,7 +2148,6 @@ class XArmController:
             "/bci/color",
             [self.bci_current_color_brush, int(self.bci_strokes_since_color_change)],
         )
-        self.draw_bci_stroke_for_event(f"brush_change_{self.bci_current_color_brush}")
         return state
 
     def draw_bci_stroke_for_event(self, reason, speed=None):
@@ -3326,7 +3332,10 @@ def _muse_paint_next_stroke(_value):
         }
 
     if result.get("drawn"):
-        controller.apply_bci_pending_color_change(brush_selector)
+        color_state = controller.apply_bci_pending_color_change(brush_selector)
+        if color_state is not None:
+            global muse_strokes_since_brush_change
+            muse_strokes_since_brush_change = 0
     controller.send_bci_status()
     return result
 
@@ -3347,28 +3356,22 @@ def _muse_brush_change_allowed(action_name, *, log=False):
     return False
 
 
-def _muse_brush_left(_value):
+def _muse_next_color(_value):
     global muse_strokes_since_brush_change
     if brush_selector is None:
         raise RuntimeError("BrushSelector is not initialized")
-    if not _muse_brush_change_allowed("head_left_brush"):
-        return {"changed": False, "reason": "stroke_lockout"}
-    state = brush_selector.move_next_left()
-    muse_strokes_since_brush_change = 0
-    controller.osc_client.send_message("/brush/done", ["muse_head_left", state["CURRENT_BRUSH"]])
-    return state
-
-
-def _muse_brush_right(_value):
-    global muse_strokes_since_brush_change
-    if brush_selector is None:
-        raise RuntimeError("BrushSelector is not initialized")
-    if not _muse_brush_change_allowed("head_right_brush"):
-        return {"changed": False, "reason": "stroke_lockout"}
-    state = brush_selector.move_next_right()
-    muse_strokes_since_brush_change = 0
-    controller.osc_client.send_message("/brush/done", ["muse_head_right", state["CURRENT_BRUSH"]])
-    return state
+    controller.trigger_bci_emg(_value)
+    state = controller.apply_bci_pending_color_change(brush_selector)
+    if state is not None:
+        muse_strokes_since_brush_change = 0
+        controller.osc_client.send_message("/brush/done", ["muse_next_color", state["CURRENT_BRUSH"]])
+        return state
+    return {
+        "changed": False,
+        "pending": bool(controller.bci_pending_emg),
+        "strokes_since_color_change": int(controller.bci_strokes_since_color_change),
+        "required_strokes": int(controller.bci_color_cooldown_strokes),
+    }
 
 
 def _handle_muse_action(action_name, value, action_func, *, use_threshold=True, use_cooldown=True):
@@ -3429,15 +3432,24 @@ def muse_osc_handler(address, *args):
         "/muse/classifier/relaxed",
     }
     muse_actions = {
-        "/muse/classifier/head/down": ("head_down_paint", _muse_paint_next_stroke, False, False),
-        "/muse/elements/head/down": ("head_down_paint", _muse_paint_next_stroke, False, False),
-        "/muse/head/down": ("head_down_paint", _muse_paint_next_stroke, False, False),
-        "/muse/classifier/head/left": ("head_left_brush", _muse_brush_left, True, True),
-        "/muse/elements/head/left": ("head_left_brush", _muse_brush_left, True, True),
-        "/muse/head/left": ("head_left_brush", _muse_brush_left, True, True),
-        "/muse/classifier/head/right": ("head_right_brush", _muse_brush_right, True, True),
-        "/muse/elements/head/right": ("head_right_brush", _muse_brush_right, True, True),
-        "/muse/head/right": ("head_right_brush", _muse_brush_right, True, True),
+        "/muse/classifier/head/up": ("head_up_paint", _muse_paint_next_stroke, True, False),
+        "/muse/elements/head/up": ("head_up_paint", _muse_paint_next_stroke, True, False),
+        "/muse/head/up": ("head_up_paint", _muse_paint_next_stroke, True, False),
+        "/muse/classifier/head/down": ("head_down_paint", _muse_paint_next_stroke, True, False),
+        "/muse/elements/head/down": ("head_down_paint", _muse_paint_next_stroke, True, False),
+        "/muse/head/down": ("head_down_paint", _muse_paint_next_stroke, True, False),
+        "/muse/classifier/head/left": ("head_left_paint", _muse_paint_next_stroke, True, False),
+        "/muse/elements/head/left": ("head_left_paint", _muse_paint_next_stroke, True, False),
+        "/muse/head/left": ("head_left_paint", _muse_paint_next_stroke, True, False),
+        "/muse/classifier/head/right": ("head_right_paint", _muse_paint_next_stroke, True, False),
+        "/muse/elements/head/right": ("head_right_paint", _muse_paint_next_stroke, True, False),
+        "/muse/head/right": ("head_right_paint", _muse_paint_next_stroke, True, False),
+        "/muse/classifier/jaw_clench": ("jaw_clench_next_color", _muse_next_color, True, True),
+        "/muse/elements/jaw_clench": ("jaw_clench_next_color", _muse_next_color, True, True),
+        "/muse/jaw_clench": ("jaw_clench_next_color", _muse_next_color, True, True),
+        "/muse/classifier/blink": ("blink_next_color", _muse_next_color, True, True),
+        "/muse/elements/blink": ("blink_next_color", _muse_next_color, True, True),
+        "/muse/blink": ("blink_next_color", _muse_next_color, True, True),
     }
     if normalized_address in muse_actions:
         try:
@@ -3446,11 +3458,6 @@ def muse_osc_handler(address, *args):
             print(f"Muse OSC gesture ignored; non-numeric value: {values[0]}", flush=True)
             return
         action_name, action_func, use_threshold, use_cooldown = muse_actions[normalized_address]
-        if action_name in {"head_left_brush", "head_right_brush"}:
-            if value < MUSE_HEAD_GESTURE_THRESHOLD:
-                return
-            if not _muse_brush_change_allowed(action_name):
-                return
         _handle_muse_action(
             action_name,
             value,
